@@ -1,0 +1,19 @@
+name: Bug report
+description: Report a reproducible runtime or specification problem
+title: "[Bug] "
+labels: [bug]
+body:
+  - type: textarea
+    id: behavior
+    attributes:
+      label: Expected and observed behavior
+      description: Do not include credentials, personal data, or private firmware.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction and environment
+      description: Include qdroid revision, platform, backend, adapter, and relevant non-sensitive logs.
+    validations:
+      required: true

@@ -1,0 +1,33 @@
+# Dependency and build outputs
+node_modules/
+.pnpm-store/
+dist/
+build/
+coverage/
+.venv/
+__pycache__/
+*.pyc
+
+# Credentials and local configuration
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+secrets/
+credentials/
+runtime-data/
+artifacts/private/
+
+# Local agent integration and personal overrides
+.codex/
+.agents/
+AGENTS.override.md
+
+# Temporary evidence and editor state
+.DS_Store
+*.log
+*.tmp
+*.part
+.idea/
+.vscode/

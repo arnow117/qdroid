@@ -1,0 +1,157 @@
+{
+  "features": {
+    "FEAT-MVP-001": {
+      "branch": "codex/project-foundation",
+      "created_at": "2026-10-23T06:14:11Z",
+      "engineering_context_ref": ".sdlc-v1/context/FEAT-MVP-001.engineering.md",
+      "id": "FEAT-MVP-001",
+      "release": {
+        "at": null,
+        "commit": null,
+        "status": "pending"
+      },
+      "requirement_id": "REQ-MVP-001",
+      "review": {
+        "at": null,
+        "by": null,
+        "decision": "pending"
+      },
+      "status": "planned",
+      "tasks": {
+        "T001": {
+          "depends_on": [],
+          "id": "T001",
+          "status": "todo",
+          "title": "最小契约、受监督身份与只读模拟器",
+          "updated_at": "2026-10-23T06:14:11Z"
+        },
+        "T002": {
+          "depends_on": [
+            "T001"
+          ],
+          "id": "T002",
+          "status": "todo",
+          "title": "Linux 最低隔离与允许/拒绝真实闭环",
+          "updated_at": "2026-10-23T06:14:12Z"
+        },
+        "T003": {
+          "depends_on": [
+            "T002"
+          ],
+          "id": "T003",
+          "status": "todo",
+          "title": "原子 admission、取消与未知结果恢复",
+          "updated_at": "2026-10-23T06:14:12Z"
+        },
+        "T004": {
+          "depends_on": [
+            "T003"
+          ],
+          "id": "T004",
+          "status": "todo",
+          "title": "完整 SandboxBackend 与隔离资格",
+          "updated_at": "2026-10-23T06:14:12Z"
+        },
+        "T005": {
+          "depends_on": [
+            "T004"
+          ],
+          "id": "T005",
+          "status": "todo",
+          "title": "固定包、安全解包与无凭据构建安装",
+          "updated_at": "2026-10-23T06:14:12Z"
+        },
+        "T006": {
+          "depends_on": [
+            "T005"
+          ],
+          "id": "T006",
+          "status": "todo",
+          "title": "条件激活、升级回滚与移除",
+          "updated_at": "2026-10-23T06:14:13Z"
+        },
+        "T007": {
+          "depends_on": [
+            "T006"
+          ],
+          "id": "T007",
+          "status": "todo",
+          "title": "受限 AgentBackend 与本地 MCP 生命周期",
+          "updated_at": "2026-10-23T06:14:13Z"
+        },
+        "T008": {
+          "depends_on": [
+            "T006"
+          ],
+          "id": "T008",
+          "status": "todo",
+          "title": "Artifact、Scene 与受限视频呈现闭环",
+          "updated_at": "2026-10-23T06:14:13Z"
+        },
+        "T009": {
+          "depends_on": [
+            "T007"
+          ],
+          "id": "T009",
+          "status": "todo",
+          "title": "ConnectorBroker 与只读 Mock 业务闭环",
+          "updated_at": "2026-10-23T06:14:13Z"
+        },
+        "T010": {
+          "depends_on": [
+            "T001"
+          ],
+          "id": "T010",
+          "status": "todo",
+          "title": "T1 设备基线与受信适配器探测",
+          "updated_at": "2026-10-23T06:14:13Z"
+        },
+        "T011": {
+          "depends_on": [
+            "T008",
+            "T010"
+          ],
+          "id": "T011",
+          "status": "todo",
+          "title": "T1 媒体导入、串行播放与本地恢复",
+          "updated_at": "2026-10-23T06:14:14Z"
+        },
+        "T012": {
+          "depends_on": [
+            "T007",
+            "T009",
+            "T011"
+          ],
+          "id": "T012",
+          "status": "todo",
+          "title": "T1 语音触摸交互与资源预算集成",
+          "updated_at": "2026-10-23T06:14:14Z"
+        }
+      },
+      "updated_at": "2026-10-23T06:14:14Z",
+      "validation": {
+        "at": null,
+        "command": null,
+        "commit": null,
+        "result": "pending"
+      }
+    }
+  },
+  "requirements": {
+    "REQ-MVP-001": {
+      "created_at": "2026-10-23T05:51:21Z",
+      "depends_on": [],
+      "description": "建立设备中立的插件、能力、授权与显示契约，先验证 Linux 隔离环境中的 simulator 受限调用，再独立验收 T1 原屏语音与机身触摸交互。",
+      "domain": "robot-runtime",
+      "feature_id": "FEAT-MVP-001",
+      "id": "REQ-MVP-001",
+      "priority": "P0",
+      "product_context_ref": ".sdlc-v1/context/REQ-MVP-001.product.md",
+      "status": "in_delivery",
+      "title": "可移植机器人应用运行时的受限 MVP",
+      "updated_at": "2026-10-23T06:14:11Z"
+    }
+  },
+  "state_format": "sdlc-lightweight-state-v1",
+  "state_version": 3
+}

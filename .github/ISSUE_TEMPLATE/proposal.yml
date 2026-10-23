@@ -1,0 +1,23 @@
+name: Capability or design proposal
+description: Propose a bounded change with acceptance criteria
+title: "[Proposal] "
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: User problem and scope
+    validations:
+      required: true
+  - type: textarea
+    id: contract
+    attributes:
+      label: Proposed contract and permission impact
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Observable acceptance and failure scenarios
+    validations:
+      required: true
