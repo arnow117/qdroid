@@ -2,13 +2,15 @@
 
 Portable agent application runtime for robot hosts: capabilities, Skills, MCP, isolated tools, and interactive scenes.
 
-**Status: design and planning.** The runtime, package installer, sandbox backend, and T1 adapter are not implemented or security-qualified. Primebot T1 Pro is the first planned device target; it is not a dependency of the core architecture.
+**Status: early implementation.** T001 provides a trusted host-driver fixture with versioned RPC, bound identities, SQLite admission/audit, and a read-only simulator. Linux isolation is the next task; the package installer and T1 adapter remain planned. Primebot T1 Pro is the first planned device target; it is not a dependency of the core architecture.
 
 ## Intended experience
 
 An application installs a fixed version of its Skills and tools, requests capabilities, and runs in a qualified sandbox. Trusted services authorize robot operations and external connectors. The same scene state can be presented through an appropriate display backend; T1 initially uses HTML rendered to MP4 and the vendor player.
 
 Initial host scope is Linux ARM64/AMD64, subject to actual runtime qualification. MCU/RTOS controllers can be attached through a device adapter; they are not assumed to run the full harness.
+
+Run the current fixture using [the usage guide](docs/USAGE.md). This fixture is not evidence of Linux sandbox or T1 hardware qualification.
 
 ## Design documents
 

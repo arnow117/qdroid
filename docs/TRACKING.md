@@ -1,6 +1,6 @@
 # Tracking and delivery workflow
 
-Status: repository foundation, 2026-10-23. This file defines tracking ownership; it does not introduce another runtime or automatic synchronization service.
+Status: early implementation, 2026-10-23. This file defines tracking ownership; it does not introduce another runtime or automatic synchronization service.
 
 ## Public tracking
 
@@ -32,7 +32,7 @@ GitHub state is a human-maintained projection. Closing an issue does not automat
 
 ## Current scope
 
-The repository foundation contains accepted design/planning and tracking setup only. MVP runtime tasks remain planned. A completed design/setup issue is separate from the runtime epic and cannot close the MVP acceptance.
+T001 is accepted with trusted host-driver evidence and eight contract tests. T002 is next and must independently prove the real Linux sandbox path. Remaining MVP tasks are planned. A completed design/setup issue is separate from the runtime epic and cannot close the MVP acceptance.
 
 The initial publication uses `codex/project-foundation` as the first branch; it is not a product release. Later implementation follows the Feature's registered branch or a controlled branch-registration migration. Do not invent branch changes from a task description.
 
@@ -44,7 +44,7 @@ Use labels for component, priority, security and device prerequisites. A task wa
 
 ## Lifecycle tooling
 
-The maintainer uses the external [sdlc-pilot](https://github.com/arnow117/sdlc-pilot) lifecycle CLI; its implementation is not copied into qdroid. The setup used version 4.0.0. Resolve the installed tool location locally; do not commit a personal absolute path. GitHub contributors can discuss/propose changes through Issues without installing the agent tooling.
+The maintainer uses the external [sdlc-pilot](https://github.com/arnow117/sdlc-pilot) lifecycle CLI; its implementation is not copied into qdroid. The foundation used version 4.0.0; current task transitions use 4.0.1. Resolve the installed tool location locally; do not commit a personal absolute path. GitHub contributors can discuss/propose changes through Issues without installing the agent tooling.
 
 The CLI's `--help` defines current options. Verified operations used in this foundation are `init`, `status`, `next`, `capture-requirement`, `mark-requirement-ready`, `start-feature`, and `add-task`. Query `status`/`next` read-only before stage work; stage agents propose changes and the main maintainer applies them. Do not edit the JSON manually.
 
@@ -60,7 +60,7 @@ Before publication, inspect the explicit file list and diff, confirm personal ag
 
 ## Registered task links
 
-`FEAT-MVP-001` is `planned`, and all twelve Tasks are `todo`; no runtime Task is complete.
+`FEAT-MVP-001` is `in_progress`; T001 is `done`, T002 through T012 remain `todo`. Exact progress is owned by lifecycle state.
 
 | Lifecycle Task | GitHub Issue | Milestone |
 |---|---|---|
@@ -77,4 +77,4 @@ Before publication, inspect the explicit file list and diff, confirm personal ag
 | T011 | [#13 — T1 媒体导入、串行播放与本地恢复](https://github.com/arnow117/qdroid/issues/13) | M3 |
 | T012 | [#14 — T1 语音触摸交互与资源预算集成](https://github.com/arnow117/qdroid/issues/14) | M3 |
 
-Detailed scope, dependencies and acceptance are owned by the [engineering context](../.sdlc-v1/context/FEAT-MVP-001.engineering.md). The next lifecycle stage is Build, starting with T001; this foundation request ends at planning/publication and does not execute it.
+Detailed scope, dependencies and acceptance are owned by the [engineering context](../.sdlc-v1/context/FEAT-MVP-001.engineering.md). The next authorized Task is T002 in Build. T001/T002 implementation, local environment preparation, commit/push and tracking updates are authorized; the rest of the MVP is not implied.

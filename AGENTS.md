@@ -4,7 +4,7 @@
 
 qdroid is a portable agent application runtime for Linux robot hosts. Primebot T1 Pro is the first device adapter. Core must not depend on vendor SDKs, ROS2 messages, a particular CPU architecture, or MP4-only displays.
 
-This repository currently contains design specifications and an implementation backlog. A specification, mock, or local media experiment is not evidence of device support or sandbox security.
+This repository contains design specifications, a tracked implementation backlog, and an early trusted simulator fixture. A specification, mock, or local media experiment is not evidence of device support or sandbox security.
 
 ## Read first
 

@@ -1,41 +1,41 @@
 # 项目上下文：qdroid
 
-更新：2026-10-23。当前为设计与仓库基础；尚无产品运行代码、依赖锁、构建产物或设备验证。
+更新：2026-10-23。当前已有最小 trusted host-driver 源码、依赖锁和契约测试；Linux 沙箱资格与设备支持分别取证，不能从代码存在推断通过。
 
 ## 项目概览与事实边界
 
-qdroid 面向 Linux 机器人主控的 Agent 应用运行时，首个适配为 T1 Pro。核心接口、插件包、沙箱/权限、显示和凭证服务通过 ports/adapters 分离。用户已授权本次设计/规范/MVP规划、独立仓库发布及 GitHub tracking；没有要求在本轮完成整个 MVP 或接入账号/设备。
+qdroid 面向 Linux 机器人主控的 Agent 应用运行时，首个适配为 T1 Pro。核心接口、插件包、沙箱/权限、显示和凭证服务通过 ports/adapters 分离。仓库基础已发布；用户现授权 T001/T002 实现、必要项目依赖和专用本地 Linux/Docker 环境、提交推送与 GitHub tracking，不包括其余 MVP、真实账号/设备或模型 API。
 
-事实来源为根 AGENTS.md、README.md、docs/specs 与 docs/architecture。当前独立 Git 分支是 `codex/project-foundation`；初始化尚未产生产品实现 commit。不能把本文未来技术选择称为实际已安装的技术栈。
+事实来源为根 AGENTS.md、README.md、docs/specs、docs/architecture 及代码/锁文件。当前独立 Git 分支是 `codex/project-foundation`；实现版本和验收证据见工程上下文，不把未来候选称为已安装或已通过。
 
 ## 仓库结构与入口
 
 | 区域 | 路径 | 当前事实 |
 |---|---|---|
-| 应用/库/CLI | none | 尚未实现；代码边界由工程计划定义 |
+| 应用/库/CLI | packages/、apps/cli/、adapters/reference-simulator/、fixtures/readonly-sim/ | 最小版本化RPC、受信fixture授权、SQLite admission与SIM；代码边界见工程计划 |
 | 公共契约 | docs/specs/ | 提案，核心、包、安全与T1规范 |
 | 架构 | docs/architecture/overview.md | 依赖方向、服务职责与信任边界 |
 | 产品/工程上下文 | .sdlc-v1/context/ | 当前Requirement与Feature正文 |
 | 生命周期 | .sdlc-v1/state.json | 仅由生命周期CLI修改 |
 | 计划/跟踪 | planner/、docs/TRACKING.md | 实施依赖、GitHub协作映射 |
-| 测试/fixture/运行产物 | none | 未来任务创建，不伪报已有套件 |
+| 测试/fixture/运行产物 | tests/contracts/、fixtures/readonly-sim/、dist/ | 契约测试与可信host driver；dist为忽略的本地编译产物 |
 | 仓库配置 | .github/、.gitignore | Issue/PR模板与私有产物忽略 |
 
 ## 技术栈与选择状态
 
 | 领域 | 提案 | 当前安装/验证状态 |
 |---|---|---|
-| Core/SDK | TypeScript，固定受支持Node版本 | none；待实现时锁定依赖 |
+| Core/SDK | TypeScript 5.9.3、Node 24.16.x、npm 11.13.x | package-lock已固定；实际host解释器24.16.0/npm11.13.0；版本检查拒绝未验证Node主/次版本 |
 | 设备provider | 语言无关进程协议；T1可用Python/rclpy或C++ | none；未安装厂家SDK |
 | Agent引擎 | pi为首候选，保留可替换接口 | none；未运行模型调用 |
-| 存储 | 本地SQLite；按服务分离journal/registry，授权预算/取消/dispatch admission在同一可信事务所有者内 | 尚未实现或选择驱动/持久性参数，禁止工作负载挂载 |
-| 软件运行 | 目标平台固定digest的OCI产物，gVisor为首隔离候选 | none；未通过Linux资格验证 |
+| 存储 | node:sqlite、WAL/FULL；PolicyAuthority自有fixture admission与审计 | 已有最小持久化路径；预算/取消/完整恢复仍待后续任务，禁止工作负载挂载 |
+| 软件运行 | 目标平台固定digest的OCI产物，gVisor为首隔离候选 | 专用ARM64 Linux VM/Docker/gVisor已准备；Ubuntu22.04启动预检不等于T002资格通过 |
 | 显示 | Scene/状态与backend分离，T1首期HTML→MP4 | none；桌面研究实验不在本仓库冒充设备验证 |
 | 外部业务 | Mock connector先验证；只读Lark适配后续真实验收 | none；未调用个人账号API |
 
 ## 入口与配置
 
-产品启动命令、API监听地址、运行时配置文件、凭据变量：none，尚未实现。
+当前使用入口为 `npm run demo -- --fixture allow|deny|none` 的可信host driver；唯一操作指南为 `docs/USAGE.md`。协议参数由contracts拥有，fixture授权由受信driver持有；没有公开grant管理、宿主exec、HTTP服务或模型/账号凭据入口。该driver本身不启动不可信工作负载。
 
 安装包manifest示例与未来接口方法位于规范中，明确标为提案。真实凭据由可信connector/model服务管理；应用只能使用当前授予的受限通道。
 
@@ -43,34 +43,38 @@ qdroid 面向 Linux 机器人主控的 Agent 应用运行时，首个适配为 T
 
 ```yaml
 commands:
-  unit: none
+  unit: npm test
   coverage: none
   e2e: none
-  typecheck: none
-  lint: none
-  build: none
+  typecheck: npm run lint
+  lint: npm run lint
+  build: npm run build
 ```
 
-现阶段仅可进行Markdown链接/示例语法、Git差异及lifecycle状态校验。未来任务建立真实命令后由对应阶段刷新本索引。不得把规范中的未来命令记录为已运行。
+以上命令先执行版本检查；`lint`当前为TypeScript no-emit检查，格式检查是`npm run format:check`。没有coverage/e2e命令。实际通过版本/范围在工程上下文记录；后续新增Linux入口时再刷新，不把未来命令记成已运行。
 
 ## 验证资源与准备
 
 | 项目 | 当前事实/缺口 |
 |---|---|
-| 验证方式 | 当前文档一致性检查；未来correctness，涉及真实Web显示时补e2e:Web，接口旅程按需补e2e:OpenAPI |
-| 工具/测试资产 | none；未来契约、负向安全和Linux隔离资格套件待建 |
-| 目标环境 | 实际Linux验证host和T1未登记；不存私人设备地址 |
+| 验证方式 | correctness契约/权限测试；未来真实Web显示再补相应模式；当前内部RPC不虚构OpenAPI入口 |
+| 工具/测试资产 | Node test runner、TypeScript、Prettier；tests/contracts/runtime.test.ts；完整Linux负向资格套件待建 |
+| 目标环境 | macOS可信host driver与任务专用ARM64 Linux VM；T1未接入，不存私人设备地址 |
 | 测试身份 | none；模拟秘密和Mock API优先；真实账号需单独授权 |
 | 运行产物 | runtime-data/、artifacts/private/等已ignore；公共非敏感证据在docs中记录 |
 | CI | none；模板不等于构建/测试工作流 |
-| 准备缺口 | 运行代码、依赖锁、Linux环境、实际限额、设备与外部集成 |
+| 准备缺口 | 最终Linux镜像/profile资格、实际资源/清理证据、设备与外部集成 |
 
 ## 变更面映射
 
-当前无产品代码；下面只覆盖现有文档/配置。新增源码时必须更新该表。
+下面区分已存在最小实现、规范和计划；新增运行入口时更新相关范围与命令。
 
 ```yaml
 surfaces:
+  - name: core-fixture-runtime
+    globs: ["packages/**", "apps/**", "adapters/reference-simulator/**", "fixtures/**", "tests/contracts/**", "scripts/**", "package*.json", "tsconfig.json", ".prettierrc.json", "docs/USAGE.md", "THIRD_PARTY_NOTICES.md"]
+    roles: [architect, security, server-dev, qa]
+    modes: [correctness]
   - name: architecture-and-contracts
     globs: ["docs/architecture/**", "docs/specs/**"]
     roles: [architect, security, qa]
@@ -101,14 +105,14 @@ surfaces:
 target: none
 config_paths: []
 environments:
-  dev: none
+  dev: trusted-host-driver and dedicated Linux VM; qualification scope recorded in engineering context
   staging: none
   canary: none
   full: none
 health_check: none
 ```
 
-预期部署目标为合格Linux机器人主控，但尚无可部署产品。
+预期部署目标为合格Linux机器人主控。当前开发环境与公开产品发布分开，尚未声明T1或完整MVP支持。
 
 ## 仓库上下文来源
 
@@ -131,4 +135,4 @@ repo_context:
 
 ## 维护与AI可读性
 
-新增真实运行入口、依赖、测试和部署配置后刷新本文；规范语义变化由当前工程上下文记录并重新评审。Feature计划与进度不在本文重复维护。规范/模板/状态的职责已在AGENTS中明确，当前最大缺口是尚无实现与运行证据。
+新增真实运行入口、依赖、测试和部署配置后刷新本文；规范语义变化由当前工程上下文记录并重新评审。Feature计划与进度不在本文重复维护。当前主要缺口是完整Linux资格、设备与业务集成证据。

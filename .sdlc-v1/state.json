@@ -16,14 +16,14 @@
         "by": null,
         "decision": "pending"
       },
-      "status": "planned",
+      "status": "in_progress",
       "tasks": {
         "T001": {
           "depends_on": [],
           "id": "T001",
-          "status": "todo",
+          "status": "done",
           "title": "最小契约、受监督身份与只读模拟器",
-          "updated_at": "2026-10-23T06:14:11Z"
+          "updated_at": "2026-10-23T07:09:09Z"
         },
         "T002": {
           "depends_on": [
@@ -128,7 +128,7 @@
           "updated_at": "2026-10-23T06:14:14Z"
         }
       },
-      "updated_at": "2026-10-23T06:14:14Z",
+      "updated_at": "2026-10-23T07:09:09Z",
       "validation": {
         "at": null,
         "command": null,
@@ -149,7 +149,7 @@
       "product_context_ref": ".sdlc-v1/context/REQ-MVP-001.product.md",
       "status": "in_delivery",
       "title": "可移植机器人应用运行时的受限 MVP",
-      "updated_at": "2026-10-23T06:14:11Z"
+      "updated_at": "2026-10-23T07:09:09Z"
     }
   },
   "state_format": "sdlc-lightweight-state-v1",
