@@ -21,17 +21,52 @@ if (mode === 'spam-output') {
   process.stderr.write(`child=${child.pid}\n`);
   setInterval(() => {}, 1_000);
 } else {
+  const admissionMode = mode.startsWith('admission-');
   await request({
     jsonrpc: '2.0',
     id: 'initialize',
     method: 'runtime.initialize',
     params: {
       protocolVersion: 'qdroid.rpc/v0.1',
-      requiredFeatures: [],
+      requiredFeatures: admissionMode ? ['qdroid.admission/v1'] : [],
     },
   });
 
-  if (mode === 'duplicate-key') {
+  if (admissionMode) {
+    const params = {
+      arguments: { amount: 1, counterId: 'counter.default' },
+      capability: 'sim.counter.add/v1',
+      idempotencyKey: `linux-${mode}`,
+      schemaVersion: 'qdroid.capability.sim.counter.add/v1',
+    };
+
+    if (mode === 'admission-forged-authority') {
+      params.principal = 'caller-supplied-authority';
+    }
+
+    const invocation = await request(
+      {
+        jsonrpc: '2.0',
+        id: 'invoke',
+        method: 'capabilities.invoke',
+        params,
+      },
+      mode !== 'admission-cancel-first',
+    );
+
+    if (mode === 'admission-cancel-first') {
+      const taskId = invocation?.result?.task?.taskId;
+      if (typeof taskId !== 'string') {
+        throw new Error('The admission invocation did not return a task handle for cancellation.');
+      }
+      await request({
+        jsonrpc: '2.0',
+        id: 'cancel',
+        method: 'tasks.cancel',
+        params: { reason: 'sandbox cancellation fixture', taskId },
+      });
+    }
+  } else if (mode === 'duplicate-key') {
     process.stdout.write(
       '{"jsonrpc":"2.0","id":"duplicate","method":"capabilities.invoke","params":' +
         '{"capability":"sim.status.read/v1","capability":"forged","schemaVersion":' +
@@ -66,13 +101,13 @@ if (mode === 'spam-output') {
   }
 }
 
-async function request(message) {
+async function request(message, isFinal = true) {
   process.stdout.write(`${JSON.stringify(message)}\n`);
   const response = await nextResponse();
   assertResponseMatchesRequest(message.id, response);
   process.stderr.write(`response-received=${message.id}\n`);
 
-  if (message.id !== 'initialize') {
+  if (message.id !== 'initialize' && isFinal) {
     confirmFinalResponse(message.id);
   }
 

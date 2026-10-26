@@ -1,29 +1,45 @@
 import {
+  ADMISSION_FEATURE,
   ContractError,
+  COUNTER_SIM_CAPABILITY,
+  COUNTER_SIM_SCHEMA_VERSION,
   parseCapabilityInvokeParams,
   parseCapabilityListParams,
+  parseCounterAddArguments,
   parseInitializeParams,
   parseJsonRpcRequest,
+  parseTaskCancelParams,
   parseTaskGetParams,
   PROTOCOL_VERSION,
   READONLY_SIM_CAPABILITY,
   READONLY_SIM_SCHEMA_VERSION,
-  type ReadonlyCapabilityProvider,
-  toJsonRpcFailure,
+  type CounterCapabilityProvider,
   type JsonRpcResponse,
   type JsonRpcSuccess,
   type JsonValue,
+  type ReadonlyCapabilityProvider,
+  toJsonRpcFailure,
 } from '../../contracts/src/index.js';
-import { PolicyAuthority, type ReadonlyAdmission } from '../../policy/src/index.js';
+import {
+  PolicyAuthority,
+  type CounterTask,
+  type ReadonlyAdmission,
+} from '../../policy/src/index.js';
 import type { BoundWorkloadIdentity } from '../../supervisor/src/index.js';
 
 interface RuntimeCoreOptions {
+  counterProvider?: CounterCapabilityProvider;
   policy: PolicyAuthority;
   provider: ReadonlyCapabilityProvider;
 }
 
+interface ChannelFeatures {
+  admission: boolean;
+}
+
+/** Public JSON-RPC and trusted scheduler entry points share one PolicyAuthority. */
 export class RuntimeCore {
-  private readonly initializedChannels = new Set<string>();
+  private readonly initializedChannels = new Map<string, ChannelFeatures>();
 
   public constructor(private readonly options: RuntimeCoreOptions) {}
 
@@ -43,6 +59,8 @@ export class RuntimeCore {
           return this.invokeCapability(identity, request.params, request.id);
         case 'tasks.get':
           return this.getTask(identity, request.params, request.id);
+        case 'tasks.cancel':
+          return this.cancelTask(identity, request.params, request.id);
         default:
           throw new ContractError(
             'QD_UNSUPPORTED_CAPABILITY',
@@ -62,16 +80,89 @@ export class RuntimeCore {
     }
   }
 
+  /** Trusted fixture/supervisor entry point. It never consumes public DTO authority. */
+  public dispatchQueuedCounterTask(identity: BoundWorkloadIdentity, taskId: string): CounterTask {
+    const provider = this.requireCounterProvider();
+    const sessionId = this.options.policy.acquireTrustedExecutorSession(identity);
+    const dispatch = this.options.policy.commitCounterDispatch(identity, taskId, sessionId);
+    const task = this.options.policy.getCounterTask(identity, taskId);
+
+    if (dispatch.decision !== 'fresh') {
+      return task;
+    }
+
+    try {
+      const observation = provider.invoke({
+        admissionId: task.admissionId,
+        amount: task.amount,
+        counterId: task.counterId,
+        providerEpoch: task.providerEpoch,
+        taskId: task.taskId,
+      });
+      return this.options.policy.recordProviderObservation(
+        identity,
+        taskId,
+        sessionId,
+        observation,
+        'provider-invoke',
+      );
+    } catch (error) {
+      this.preserveUnknown(identity, taskId, sessionId);
+      throw unknown(taskId, error);
+    }
+  }
+
+  /** Trusted recovery only queries the historical provider record; it never invokes again. */
+  public reconcileCounterTask(identity: BoundWorkloadIdentity, taskId: string): CounterTask {
+    const provider = this.requireCounterProvider();
+    const sessionId = this.options.policy.acquireTrustedExecutorSession(identity);
+    const task = this.options.policy.getCounterTask(identity, taskId);
+
+    try {
+      const observation = provider.observe(task.admissionId, task.providerEpoch);
+      return this.options.policy.recordProviderObservation(
+        identity,
+        taskId,
+        sessionId,
+        observation,
+        'provider-reconcile',
+      );
+    } catch (error) {
+      this.preserveUnknown(identity, taskId, sessionId);
+      throw unknown(taskId, error);
+    }
+  }
+
+  public markCounterObservationDeadline(
+    identity: BoundWorkloadIdentity,
+    taskId: string,
+  ): CounterTask {
+    const sessionId = this.options.policy.acquireTrustedExecutorSession(identity);
+    return this.options.policy.markObservationDeadlineUnknown(identity, taskId, sessionId);
+  }
+
+  public recoverAfterConfirmedExecutorExit(
+    identity: BoundWorkloadIdentity,
+    sessionId: string,
+  ): CounterTask[] {
+    return this.options.policy.recoverAfterConfirmedExecutorExit(identity, sessionId);
+  }
+
   private initialize(
     identity: BoundWorkloadIdentity,
     params: Record<string, JsonValue>,
     requestId: number | string,
   ): JsonRpcSuccess {
-    const initializeParams = parseInitializeParams(params);
+    const initialized = parseInitializeParams(params);
+    const admission = initialized.requiredFeatures.includes(ADMISSION_FEATURE);
+    const unknownFeature = initialized.requiredFeatures.some(
+      (feature) => feature !== ADMISSION_FEATURE,
+    );
 
     if (
-      initializeParams.protocolVersion !== PROTOCOL_VERSION ||
-      initializeParams.requiredFeatures.length > 0
+      initialized.protocolVersion !== PROTOCOL_VERSION ||
+      unknownFeature ||
+      (admission && this.options.counterProvider === undefined)
     ) {
       throw new ContractError(
         'QD_INCOMPATIBLE_VERSION',
@@ -80,7 +171,11 @@ export class RuntimeCore {
       );
     }
 
-    this.initializedChannels.add(identity.channelId);
+    if (admission) {
+      this.options.policy.validateAdmissionContext(identity);
+    }
+
+    this.initializedChannels.set(identity.channelId, { admission });
 
     return success(requestId, {
       instance: {
@@ -89,7 +184,7 @@ export class RuntimeCore {
         instanceId: identity.instanceId,
       },
       protocolVersion: PROTOCOL_VERSION,
-      supportedFeatures: [],
+      supportedFeatures: this.options.counterProvider === undefined ? [] : [ADMISSION_FEATURE],
     });
   }
 
@@ -98,20 +193,25 @@ export class RuntimeCore {
     params: Record<string, JsonValue>,
     requestId: number | string,
   ): JsonRpcSuccess {
-    this.requireInitialized(identity);
-    const listParams = parseCapabilityListParams(params);
-    const allowedCapabilities = this.options.policy.listAllowedCapabilities(identity);
-    const capabilities = allowedCapabilities
+    const features = this.requireInitialized(identity);
+    const list = parseCapabilityListParams(params);
+    const readonlyCapabilities = this.options.policy
+      .listAllowedCapabilities(identity)
       .filter(
         (capability) =>
-          listParams.capabilityPrefix === undefined ||
-          capability.startsWith(listParams.capabilityPrefix),
+          list.capabilityPrefix === undefined || capability.startsWith(list.capabilityPrefix),
       )
-      .map((capability) => ({
-        capability,
-        schemaVersion: READONLY_SIM_SCHEMA_VERSION,
-      }));
-
+      .map((capability) => ({ capability, schemaVersion: READONLY_SIM_SCHEMA_VERSION }));
+    const counterCapabilities = features.admission
+      ? this.options.policy
+          .listAllowedCounterCapabilities(identity)
+          .filter(
+            (capability) =>
+              list.capabilityPrefix === undefined || capability.startsWith(list.capabilityPrefix),
+          )
+          .map((capability) => ({ capability, schemaVersion: COUNTER_SIM_SCHEMA_VERSION }))
+      : [];
+    const capabilities = [...readonlyCapabilities, ...counterCapabilities];
     return success(requestId, { capabilities });
   }
 
@@ -120,41 +220,72 @@ export class RuntimeCore {
     params: Record<string, JsonValue>,
     requestId: number | string,
   ): JsonRpcSuccess {
-    this.requireInitialized(identity);
-    const invokeParams = parseCapabilityInvokeParams(params);
+    const features = this.requireInitialized(identity);
+    const invocation = parseCapabilityInvokeParams(params);
 
     if (
-      invokeParams.capability !== READONLY_SIM_CAPABILITY ||
-      invokeParams.schemaVersion !== READONLY_SIM_SCHEMA_VERSION
+      invocation.capability === READONLY_SIM_CAPABILITY &&
+      invocation.schemaVersion === READONLY_SIM_SCHEMA_VERSION
     ) {
+      if (invocation.idempotencyKey !== undefined || Object.keys(invocation.arguments).length > 0) {
+        throw validation();
+      }
+
+      return this.invokeReadonly(identity, invocation.arguments, requestId);
+    }
+
+    if (
+      invocation.capability !== COUNTER_SIM_CAPABILITY ||
+      invocation.schemaVersion !== COUNTER_SIM_SCHEMA_VERSION
+    ) {
+      throw unsupported();
+    }
+
+    if (!features.admission || invocation.idempotencyKey === undefined) {
       throw new ContractError(
-        'QD_UNSUPPORTED_CAPABILITY',
-        'The requested capability or schema is not supported.',
-        -32004,
+        'QD_INCOMPATIBLE_VERSION',
+        'The admission feature must be negotiated before invoking this capability.',
+        -32002,
       );
     }
 
-    if (Object.keys(invokeParams.arguments).length > 0) {
-      throw new ContractError('QD_VALIDATION_FAILED', 'Invalid request parameters.');
+    const input = parseCounterAddArguments(invocation.arguments);
+    const task = this.options.policy.enqueueCounterTask(identity, input, invocation.idempotencyKey);
+
+    return success(requestId, { task: taskHandle(task) });
+  }
+
+  private invokeReadonly(
+    identity: BoundWorkloadIdentity,
+    argumentsValue: Record<string, JsonValue>,
+    requestId: number | string,
+  ): JsonRpcSuccess {
+    const admission = this.admitReadonly(identity, argumentsValue);
+
+    try {
+      const simulatorResult = this.options.provider.readStatus();
+      const result: JsonValue = {
+        mode: simulatorResult.mode,
+        source: simulatorResult.source,
+        temperatureC: simulatorResult.temperatureC,
+      };
+      this.options.policy.recordReadonlyOutcome(admission, result);
+      return success(requestId, {
+        result,
+        task: {
+          admissionId: admission.admissionId,
+          state: 'succeeded',
+          taskId: admission.taskId,
+        },
+      });
+    } catch (error) {
+      try {
+        this.options.policy.recordUnknownOutcome(admission);
+      } catch {
+        // A second persistence error cannot establish a safe retry.
+      }
+      throw unknown(admission.taskId, error);
     }
-
-    const admission = this.admitReadonlyInvocation(identity, invokeParams.arguments);
-    const simulatorResult = this.readSimulatorResult(admission);
-    const result: JsonValue = {
-      mode: simulatorResult.mode,
-      source: simulatorResult.source,
-      temperatureC: simulatorResult.temperatureC,
-    };
-    this.recordSimulatorResult(admission, result);
-
-    return success(requestId, {
-      result,
-      task: {
-        admissionId: admission.admissionId,
-        state: 'succeeded',
-        taskId: admission.taskId,
-      },
-    });
   }
 
   private getTask(
@@ -162,10 +293,15 @@ export class RuntimeCore {
     params: Record<string, JsonValue>,
     requestId: number | string,
   ): JsonRpcSuccess {
-    this.requireInitialized(identity);
+    const features = this.requireInitialized(identity);
     const taskParams = parseTaskGetParams(params);
-    const task = this.options.policy.getTask(identity, taskParams.taskId);
 
+    if (features.admission) {
+      const task = this.options.policy.getCounterTask(identity, taskParams.taskId);
+      return success(requestId, { task: taskHandle(task) });
+    }
+
+    const task = this.options.policy.getTask(identity, taskParams.taskId);
     return success(requestId, {
       task: {
         admissionId: task.admissionId,
@@ -176,17 +312,56 @@ export class RuntimeCore {
     });
   }
 
-  private requireInitialized(identity: BoundWorkloadIdentity): void {
-    if (!this.initializedChannels.has(identity.channelId)) {
-      throw new ContractError(
-        'QD_STALE_CONTEXT',
-        'Initialize the current channel before calling this method.',
-        -32003,
+  private cancelTask(
+    identity: BoundWorkloadIdentity,
+    params: Record<string, JsonValue>,
+    requestId: number | string,
+  ): JsonRpcSuccess {
+    const features = this.requireInitialized(identity);
+    if (!features.admission) {
+      throw unsupported();
+    }
+    const request = parseTaskCancelParams(params);
+    const task = this.options.policy.requestCancellation(identity, request.taskId, request.reason);
+
+    if (task.state === 'canceled') {
+      return success(requestId, { task: taskHandle(task) });
+    }
+
+    const provider = this.requireCounterProvider();
+    const sessionId = this.options.policy.acquireTrustedExecutorSession(identity);
+    try {
+      const observation = provider.cancel(task.admissionId, task.providerEpoch);
+      const observed = this.options.policy.recordProviderObservation(
+        identity,
+        task.taskId,
+        sessionId,
+        observation,
+        'provider-cancel',
       );
+      return success(requestId, { task: taskHandle(observed) });
+    } catch (error) {
+      this.preserveUnknown(identity, task.taskId, sessionId);
+      throw unknown(task.taskId, error);
     }
   }
 
-  private admitReadonlyInvocation(
+  private requireInitialized(identity: BoundWorkloadIdentity): ChannelFeatures {
+    const features = this.initializedChannels.get(identity.channelId);
+    if (features === undefined) {
+      throw stale();
+    }
+    return features;
+  }
+
+  private requireCounterProvider(): CounterCapabilityProvider {
+    if (this.options.counterProvider === undefined) {
+      throw unsupported();
+    }
+    return this.options.counterProvider;
+  }
+
+  private admitReadonly(
     identity: BoundWorkloadIdentity,
     argumentsValue: Record<string, JsonValue>,
   ): ReadonlyAdmission {
@@ -196,7 +371,6 @@ export class RuntimeCore {
       if (error instanceof ContractError) {
         throw error;
       }
-
       throw new ContractError(
         'QD_PROVIDER_UNAVAILABLE',
         'Authorization service is unavailable.',
@@ -205,44 +379,60 @@ export class RuntimeCore {
     }
   }
 
-  private readSimulatorResult(admission: ReadonlyAdmission) {
+  private preserveUnknown(
+    identity: BoundWorkloadIdentity,
+    taskId: string,
+    sessionId: string,
+  ): void {
     try {
-      return this.options.provider.readStatus();
+      this.options.policy.markObservationDeadlineUnknown(identity, taskId, sessionId);
     } catch {
-      this.preserveUnknownOutcome(admission);
+      // Durable unknown evidence may be unavailable after a storage fault.
     }
-  }
-
-  private recordSimulatorResult(admission: ReadonlyAdmission, result: JsonValue): void {
-    try {
-      this.options.policy.recordReadonlyOutcome(admission, result);
-    } catch {
-      this.preserveUnknownOutcome(admission);
-    }
-  }
-
-  private preserveUnknownOutcome(admission: ReadonlyAdmission): never {
-    try {
-      this.options.policy.recordUnknownOutcome(admission);
-    } catch {
-      // A second persistence fault cannot establish a result. The stable error still
-      // prevents callers from treating the admission as a rejected input error.
-    }
-
-    throw new ContractError(
-      'QD_OUTCOME_UNKNOWN',
-      'The provider outcome is unknown. Reconcile before retrying.',
-      -32010,
-      'manual-reconcile',
-      admission.taskId,
-    );
   }
 }
 
-function success(id: number | string, result: JsonValue): JsonRpcSuccess {
+function taskHandle(task: CounterTask): JsonValue {
   return {
-    jsonrpc: '2.0',
-    id,
-    result,
+    admissionId: task.admissionId,
+    cancelRequested: task.cancelRequested,
+    result: task.result,
+    state: task.state,
+    stateVersion: task.stateVersion,
+    taskId: task.taskId,
   };
+}
+
+function success(id: number | string, result: JsonValue): JsonRpcSuccess {
+  return { jsonrpc: '2.0', id, result };
+}
+
+function unsupported(): ContractError {
+  return new ContractError(
+    'QD_UNSUPPORTED_CAPABILITY',
+    'The requested capability or schema is not supported.',
+    -32004,
+  );
+}
+
+function validation(): ContractError {
+  return new ContractError('QD_VALIDATION_FAILED', 'Invalid request parameters.');
+}
+
+function stale(): ContractError {
+  return new ContractError(
+    'QD_STALE_CONTEXT',
+    'Initialize the current channel before calling this method.',
+    -32003,
+  );
+}
+
+function unknown(taskId: string, _cause: unknown): ContractError {
+  return new ContractError(
+    'QD_OUTCOME_UNKNOWN',
+    'The provider outcome is unknown. Reconcile before retrying.',
+    -32010,
+    'manual-reconcile',
+    taskId,
+  );
 }

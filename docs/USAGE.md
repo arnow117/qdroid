@@ -92,6 +92,81 @@ this driver as an external workload launcher. T002 is responsible for attaching 
 supervisor-owned channel to a qualified Linux workload and for publishing any
 sandbox evidence.
 
+## USE-002: negotiated admission and persistent counter journey
+
+This T003 journey adds `qdroid.admission/v1` to the existing `qdroid.rpc/v0.1`
+channel. It uses `sim.counter.add/v1`, schema
+`qdroid.capability.sim.counter.add/v1`, resource `counter.default`, an amount from
+`1` through `10`, and a UTF-16-bounded idempotency key. The public protocol only
+queues work and exposes `tasks.get` and `tasks.cancel`; dispatch and reconciliation
+remain trusted broker operations.
+
+Use the local fixture to run the normal queued-and-dispatched path:
+
+```sh
+npm run build
+node dist/apps/cli/src/index.js admission-demo --fixture allow
+```
+
+The result has one provider attempt and one persistent counter effect. The task is
+first queued, then the trusted fixture dispatches it exactly once. Reusing the same
+key with changed input returns `QD_IDEMPOTENCY_CONFLICT`; it never creates another
+provider effect.
+
+Run cancellation before trusted dispatch, an ungranted request, and an attempt to
+forge caller authority:
+
+```sh
+node dist/apps/cli/src/index.js admission-demo --fixture cancel-first
+node dist/apps/cli/src/index.js admission-demo --fixture ungranted
+node dist/apps/cli/src/index.js admission-demo --fixture forged
+```
+
+The cancellation journey ends with a canceled task and zero attempts/effects. The
+ungranted request returns `QD_PERMISSION_DENIED`; the forged request returns
+`QD_VALIDATION_FAILED`. Neither starts a provider operation.
+
+Run the finite accepted-observation recovery path:
+
+```sh
+node dist/apps/cli/src/index.js admission-demo --fixture recovery
+```
+
+It records `dispatched`, waits for the persisted observation deadline, and records
+`unknown` with one attempt and zero effects. The trusted fixture then completes the
+same original provider operation and reconciles it by query; the result succeeds
+with one attempt and one effect. It never sends the queued request a second time.
+
+If a post-commit operation reports `QD_OUTCOME_UNKNOWN`, keep the original task ID.
+Do not resubmit its idempotency key. First call `tasks.get`; a trusted broker can
+then reconcile the original provider epoch's historical record. An unsupported or
+deadline-expired observation remains `unknown` with no refund or replay. A new
+executor may reconcile only after the old executor session has been fenced after a
+confirmed exit.
+
+For the fixed ARM64 Linux sandbox journey, build the changed fixture image on the
+dedicated VM, then use its immutable local image ID for the single full
+qualification run. This runs the retained seven T002 first-call cases plus normal,
+cancel-first, forged-authority, and ungranted admission cases:
+
+```sh
+docker build --tag qdroid-t003:local fixtures/readonly-sim
+image_id="$(docker image inspect --format '{{.Id}}' qdroid-t003:local)"
+QDROID_T002_IMAGE="$image_id" npm run test:linux
+```
+
+The Linux test must exit successfully before treating its records as evidence. It
+uses the existing fixed gVisor profile and does not claim broader device or hardware
+qualification.
+
+The verified T003 image on 2026-10-26 was
+`sha256:ba0d9c3ddb249ef76ea8a369b17de94e5cce92d4f88d67bfbdcf81b50e386f0f`.
+The cumulative host and VM tests passed 60/60; the final Linux suite and an
+independent public Linux CLI journey passed with all eleven scenarios. The normal
+counter call produced one attempt/effect; cancel-first and both rejected modes
+produced zero. Unknown recovery is a trusted fixture journey. The retained
+first-run cleanup failure and exact manifest are in the engineering context.
+
 ### T002 Linux path: fixed first-call fixture
 
 This path runs the first real sandboxed fixture for AC-01, AC-02, AC-04, and AC-05.
@@ -127,7 +202,7 @@ image_id="$(docker image inspect --format '{{.Id}}' qdroid-t002:local)"
 QDROID_T002_IMAGE="$image_id" npm run test:linux
 ```
 
-To print the qualification report and all seven scenario results from the public
+To print the qualification report and all eleven scenario results from the public
 CLI, use the same local image:
 
 ```sh
@@ -177,9 +252,13 @@ first-call scenarios; the implementation never falls back to runc or host
 execution. Preserve the bounded error and cleanup evidence, then correct the
 trusted VM configuration or image selection before retrying.
 
-This result covers one fixed ARM64 Linux profile and the supervisor-owned stdio
-`sim.status.read/v1` first-call fixture. It does not support package installation,
-external MCP servers, models, display, real accounts, robot hardware, or the
-concurrency and recovery work assigned to later tasks. The implementation and
-evidence are tracked in [T002](https://github.com/arnow117/qdroid/issues/4) and
-the [engineering context](../.sdlc-v1/context/FEAT-MVP-001.engineering.md).
+This result covers one fixed ARM64 Linux profile, the supervisor-owned stdio
+`sim.status.read/v1` first-call fixture, and the bounded T003 admission journey
+for `sim.counter.add/v1`: trusted queue dispatch, cancel-first, forged and
+ungranted rejection, and unknown-to-authoritative-query recovery. It does not
+support package installation, external MCP servers, models, display, real
+accounts, robot hardware, or later work beyond this fixed fixture. The
+implementation and evidence are tracked in
+[T002](https://github.com/arnow117/qdroid/issues/4),
+[T003](https://github.com/arnow117/qdroid/issues/5), and the
+[engineering context](../.sdlc-v1/context/FEAT-MVP-001.engineering.md).

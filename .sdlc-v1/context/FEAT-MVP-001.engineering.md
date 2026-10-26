@@ -10,7 +10,7 @@
 
 **已确认需求**：产品 C-01 至 C-08、REQ-001 至 REQ-008；EA-* 为工程候选，O-* 为待测事实。
 
-**创建日期**：2026-10-23。**状态**：Plan 已验收，Build 已获授权；T001 已接受，T002 正在实施。精确进度以 lifecycle state 为准。
+**创建日期**：2026-10-23。**状态**：Plan 已验收，T001/T002/T003 已接受；T004—T012 尚未实施。精确进度以 lifecycle state 为准。
 
 #### 背景
 
@@ -18,7 +18,7 @@
 
 长期方向的已提交验证基线为 `none`；产品确认来源见产品 SRC-01 至 SRC-07。本方案引用 [架构](../../docs/architecture/overview.md)、[核心接口](../../docs/specs/core-interfaces.md)、[插件包](../../docs/specs/plugin-package.md)、[权限/沙箱](../../docs/specs/sandbox-permissions.md)、[Scene 渲染](../../docs/specs/scene-rendering.md)、[T1](../../docs/specs/t1-adapter.md)，不复制完整规范。
 
-当前用户已授权实施 T001/T002、必要依赖与专用本地 Linux/Docker 环境准备、提交推送和更新 GitHub tracking；不据此启动其余任务、真实账号/模型 API、设备或远程 benchmark。真实外部/物理操作仍需对应授权。移动、第二台真实机器人、fleet 和任意市场不在本 Feature。
+当前用户已授权实施 T001/T002/T003、必要依赖与专用本地 Linux/Docker 环境准备、验收后提交推送和更新 GitHub tracking；不据此启动 T004—T012、真实账号/模型 API、设备或远程 benchmark。真实外部/物理操作仍需对应授权。移动、第二台真实机器人、fleet 和任意市场不在本 Feature。
 
 复用评估按现有代码→依赖→官方方案进行：源码/依赖搜索为空；可复用资产为规范、研究来源与合成场景设计。[研究基线](../../docs/research/2026-10-22-findings.md) 是有日期的工程输入，不是当前版本/兼容性的实测证据。
 
@@ -200,7 +200,7 @@ sequenceDiagram
 
 #### 风险 / 取舍
 
-受控Linux环境、T1到货与SDK权限当前未知，工期不按日历承诺。当前 T001/T002 所需本地依赖和专用 Docker 环境已获授权；不包含租用远程资源或刷机。T010可在T001后且设备/只读访问获授权时提前调查，milestone不是技术依赖。具体风险与回滚引用架构风险表，不以关闭隔离换进度。
+受控Linux环境、T1到货与SDK权限当前未知，工期不按日历承诺。当前 T001/T002/T003 所需本地依赖和专用 Docker 环境已获授权；不包含租用远程资源或刷机。T010可在T001后且设备/只读访问获授权时提前调查，milestone不是技术依赖。具体风险与回滚引用架构风险表，不以关闭隔离换进度。
 
 #### 实施阶段
 
@@ -330,6 +330,25 @@ I/O 生命周期修正后的完整验收已得到 16777216 字节的实际读增
 - **验证环境 / 方法**：受控Linux + 可计数合成provider；逐个在commit/调用/结果持久化前后崩溃，重启/旧epoch/迟到/重复均能核对预算、cancel、次数和历史。SQLite contention/commit失败必须拒绝新发送；不操作真机或真实写API。
 - **授权 / 设备前置**：后续Build与测试host许可，无真实外部效果。**usage**：USE-002说明Task/取消/unknown查询与恢复决策；不能提供“一键重试未知动作”。
 
+##### T003 当前实施契约（2026-10-26；事前复核后定稿）
+
+本任务复用已固定的 Node 24.16.0、node:sqlite、SQLite WAL/FULL、受监督 JSON-RPC 与合格 OCI manager；不引入数据库/队列框架。新执行协议在单个 PolicyAuthority 本地数据库内增加带版本的 admission 表，不修改旧只读 capability 的含义，不把 Task 投影当授权事实。T001/T002 的 legacy 只读 fixture 保持兼容，新的预算/取消/恢复范围由本节的版本化 feature 和合成 capability 明确标识。
+
+1. **接口与兼容**：沿用 `qdroid.rpc/v0.1`，新增显式协商的 required feature `qdroid.admission/v1`；旧 `requiredFeatures: []` 的只读调用、输出形状和严格字段校验保留。新 capability 为 `sim.counter.add/v1` / schema `qdroid.capability.sim.counter.add/v1`，固定合成资源 `counter.default`，输入仅 `counterId` 和整数 `amount`（1—10）。调用必须有有界 `idempotencyKey`，返回 queued TaskHandle；`tasks.get` 与 `tasks.cancel {taskId, reason}` 是唯一公开任务操作，无公开 grant/approval/revoke/reconcile/dispatch 管理接口。Core 用可信调度入口推进 queued task；应用不能指定 provider、身份、epoch、lease、grant、approval、ticket 或恢复证据。required feature 未协商不能使用新语义；未知 feature/字段/非法字符串均拒绝。新字段只按新 capability schema 接受，旧只读调用不隐式变更语义。
+2. **持久模型与升级**：新增版本化的 subject/context、provider generation、host/installation policy、grant/approval、queued admission、cancel/use/dispatch 与 append-only history 表，均在原 PolicyAuthority DB 中；保留 legacy tables/rows，避免改变其 CHECK/历史意义。用 SQLite schema version 拒绝未来/不支持版本；非空旧库先通过 SQLite 一致性备份保存快照，再在一个事务中做 additive migration。迁移失败/崩溃不得删除或覆盖旧结果，测试 legacy 升级、回滚/重开、未来版本拒绝；无需重建历史数据或在网络文件系统运行。禁止直接复制运行中 sqlite 主文件冒充完整备份。旧只读 fixture 不会获得新 side-effect grant。
+3. **可信上下文**：在 workload 初始化前由 trusted fixture/supervisor 装配注册完整 installation/instance/boot/channel/epoch 与本地 lease，provider/profile generation 由可信路由注册；初始化和每次新操作必须校验 live binding。注册/换代/撤销不通过公共 RPC。跨重启复用稳定 instance 的任务查询需由可信 supervisor 重新绑定更高 epoch，旧 channel/epoch 不能恢复权限；查询可见性按当前 installation+instance 所有权，ID 不构成权限。
+4. **策略交集**：固定 counter capability 必须通过 host、installation、所有适用 active grant 的范围/amount 上限/expiry/预算约束，至少一个 allow、任一适用 deny 即拒绝。operator 变更在事务内增加 installation policy generation；queued intent 捕获的旧 generation 不能 dispatch。grant 的 use budget 和可选 approval 均为可信输入；approval 必须精确绑定 task/subject/capability/resource/canonical digest/期限，issuer 不可由 workload 充当。默认测试可选择不需审批的有限 grant，使一次预算竞争不被缺审批掩盖；审批另有精确作用域与重复扣减负例。
+5. **规范化与幂等**：可信侧从 schema/operation/resource/固定 provider contract/规范化参数计算 SHA-256 digest；原路由的 provider identity/epoch 另存于不可变 intent binding，dispatch 时校验两者，不含 caller RPC ID，也不把 caller key 当权限。唯一去重 scope 为 installation+stable instance+idempotencyKey，不含 channel/epoch；同 key 同 digest 返回原 Task/admission，不产生新扣减或 send right；同 key 不同 digest 明确冲突。新 epoch 的同 key 也只能查原记录，不能变成新操作。旧 epoch 请求在读取/取消/提交前先拒绝；key 为有界非空合法 Unicode 字符串，digest 的 canonical schema 有明确版本。
+6. **原子提交**：precheck/入队不扣预算。`commitDispatch` 通过 `BEGIN IMMEDIATE` 在同一事务检查任务仍 queued、cancel marker、live subject/provider/profile/lease、policy generation、所有适用限制和 approval，然后条件扣 use/approval、记录 admission ID/dispatch intent、增加 stateVersion/history 并 COMMIT。两个独立 Node 进程/连接同时竞争一个 use 只能一个 fresh commit。返回 existing/canceled/denied 分支都无 send right。只有真实 fresh 分支可在可信 executor 中获得一次内部发送许可；公共 DTO、伪造结构/ticket ID、重复 dispatch API 调用或重开数据库不能获得第二次许可。SQLite busy/commit/存储异常不得调用 provider；有限等待，保留已提交记录，不自动退款。
+7. **取消顺序**：`requestCancellation` 与 commit 使用同一事务所有者和顺序记录。queued cancel 先 COMMIT 则任务 canceled、没有 dispatch/use/approval 消耗；dispatch 先则记录独立 cancelRequested 并交由 provider cancel/observe，不抹去 in-flight 状态和已耗预算。取消接受回执不等于 stopped；合成 provider 的每个 operation 以持久事务/CAS 决定唯一不可变终态，并提供单调 observationVersion；完成先发生时，之后 stop 返回 completed 快照，不能签发 stopped 证据。先 stopped 则后续 complete 不再产生 effect。回调仅是查询通知，可信 executor 在提交终态前查询 provider 当前持久快照，核对 operation/admission/provider epoch，不能按回报到达顺序裁决。无法提供这种权威事实的 provider 继续 unknown/cancelRequested。补反向交付完成/停止通知的验证。重复取消幂等，别的 instance/installation 无查询/取消权。
+8. **执行证据与恢复**：独立合成 provider 用自己的本地持久记录保存每次真实 invoke attempt、counter mutation、operation reference 和观察结果；不通过 provider 去重掩盖 broker 重复调用。admission/task/provider journal 关联同一 admission ID。可信 executor session/epoch 显式登记，多个并发连接共享同一 session；禁止每次 PolicyAuthority 构造自动恢复/使其他活跃连接失效。确认旧 executor 已退出后，受信恢复操作 CAS 换代/fence 旧 session，queued 不自动运行，dispatched/running 无终态证据转 unknown；commit 到 provider 调用间崩溃也 unknown、无重发/退款。before commit、after commit/before send、after provider effect/before result、after result 各用真实子进程同步点和 SIGKILL 验证。旧 session 回报不能覆写新状态，新的可信 reconcile 只向固定 provider 查询已有 operation/admission，不能 invoke。
+9. **状态与对账**：queued/dispatched/running/succeeded/failed/canceled/unknown，stateVersion 单调增加，cancelRequested 与终态独立，accepted-only 不伪造 running/succeeded；provider 明确 observation unsupported 时立即转 unknown 并保存原因，支持观察但在固定有限 observation deadline 内仍无可核实结果也转 unknown。新范围的 provider observe/query/cancel 同样有界；这两个分支不依赖 executor 先崩溃，不新增 send right 或返还预算。append-only 观察 history 保存版本与来源；有权威完成/停止证据的 reconcile 可用期望 stateVersion 将 unknown 解消。重复 event 幂等；陈旧/跨 scope/矛盾终态证据不能覆盖既有事实，保留拒绝/冲突记录。`tasks.get` 是 ledger 的受限投影，不自建可反向授权的缓存；post-dispatch 持久失败返回 `QD_OUTCOME_UNKNOWN`/manual-reconcile/taskId，已提交 use 不返还。测试只有 cancel acceptance、完成/停止先后、重复与迟到结果。
+10. **验收和范围**：本地 contract/static 累计检查；Linux 上独立进程的 budget/approval/取消竞争、SQLite busy/commit fault、真实 SIGKILL 崩溃恢复矩阵、旧 context 和 key 冲突、provider attempts/effects/history 查询。增加唯一 `docs/USAGE.md` 的 USE-002 与已实测 CLI（正常、取消、unknown→权威查询恢复）；固定 sandbox 内用显式 T003 workload mode 实测新协议的 queued cancel/拒绝/正常路径。允许修改 contracts/Core/Policy/simulator、专用 admission fixture、CLI/root scripts/tests，以及 OCI mode enum/fixed client 的必要最小接线；不改变 sandbox profile/权限。fixture 输入改变则重建 immutable image，重验 T002 Linux 资格与新 T003 Linux journey；只改 broker 时复用镜像。无模型、账号或物理设备，T004 完整多 profile 资格仍待后续任务。主 Agent 只读集成与独立 review 后接受，才可 mark done/提交/推送/更新 #5 和 epic #2。
+
+实施约束补充：当前可信 executor 的 reconcile 可以查询任务原 provider epoch 的历史持久记录，该 epoch 必须与原 admission/operation 一致；它不是旧 session 获得写回权限。不能因为 provider 或 broker 已重启就丢弃可验证的历史结果，也不能据此授权历史 intent 重发。旧 session 的直接回报仍由新 session fence 拒绝。故障验收中 COMMIT failure 要由实际 SQLite 提交失败（例如 deferred constraint）或等价明确的事务层注入证明，不能只用提交前业务回调抛错替代；两进程争用必须在各自 precheck 后同步释放，不以单进程 Promise.all 假装并发。trusted fixture 可以显式推进队列，无需在 T003 新建通用生产 daemon。
+
+本协议的一次 fresh-context 事前复核发现两个 actionable 的缺失契约（终态回报乱序、存活 executor 的 accepted-only 退出条件），已据此明确上述第 7/9 项；本轮不再做重复协议复核，代码完成后的独立 review 另行进行。两项修正均保留产品 AC-12 的既定行为，不增加产品范围。
+
 #### T004 — 完整 SandboxBackend 与隔离资格
 
 - **故事 / milestone**：US-01/05，M0；**依赖**：T003。**覆盖**：REQ-002、004；AC-03至06、20的Linux部分。
@@ -419,7 +438,7 @@ I/O 生命周期修正后的完整验收已得到 16777216 字节的实际读增
 
 先演示T001+T002的有限真实结果，保留未覆盖AC；然后逐项交付本任务的实现/必要测试。每次证据记录commit、依赖锁、环境/profile、身份/权限引用、命令/结果和范围；实际结果只进下方记录。公共代码/配置变更后重验相关证据；schema/持久格式/跨板协议偏离规范先由主Agent更新当前有效方案，不由worker临时扩大。
 
-后续Build按既有Sol决策/Terra实现路由，单一implementer完成有界任务及修正。非收敛停止与有限诊断遵循项目AGENTS及stage-agent-protocol；不能靠换Task名、换worker、反复重跑清除失败历史。当前用户已授权完成 T002 修正、专用本地 Linux/Docker 验收、通过后提交推送与 GitHub tracking；仅继续 T002，不启动后续任务或真实设备/账号/模型 API。
+后续Build按既有Sol决策/Terra实现路由，单一implementer完成有界任务及修正。非收敛停止与有限诊断遵循项目AGENTS及stage-agent-protocol；不能靠换Task名、换worker、反复重跑清除失败历史。T001/T002/T003 已接受；当前授权包含验收后的提交推送与 GitHub tracking；不启动 T004—T012 或真实设备/账号/模型 API。
 
 ## 实现记录（实际）
 
@@ -428,7 +447,14 @@ I/O 生命周期修正后的完整验收已得到 16777216 字节的实际读增
 - **可信路径**：`packages/policy/` 使用本地 SQLite 的 `WAL` 与 `synchronous=FULL`，在调用 provider 前持久化 request digest、input scope、policy generation、grant、admission 和 task；审计只保存关联的 opaque ID、digest 和 outcome。同一主体/能力的任一 active `deny` 优先于所有 active `allow`，不因后续 allow 隐式停用旧 deny。`packages/core/` 只依赖 contracts 中的 `ReadonlyCapabilityProvider` port；`adapters/reference-simulator/` 由受信 fixture 注入，独立维护实际操作计数。provider 调用或结果 journal 出错后，admission/task 保留为 `unknown` 并返回净化的不可盲重试错误；admission 写入失败则在调用 provider 前返回可安全重试的服务不可用。T003 仍拥有并发、取消、崩溃恢复与完整状态矩阵，不能从本实现推断已完成。
 - **使用入口**：[docs/USAGE.md](../../docs/USAGE.md) 是 USE-001 的唯一操作说明。它明确这是 host trusted-driver fixture，不是 Linux sandbox、真机、账号或模型结果；Supervisor 的 channel handler 保持 transport-neutral，供 T002 以 supervisor-owned stdio 连接实际 Docker workload。
 
+- **T003 实现与最终运行证据（2026-10-26）**：在基线 `20f34a233e5522b9855a7a18f08516c0b3f667e6` 上实现协商 feature `qdroid.admission/v1`、持久 SQLite admission/上下文/预算/approval/dispatch/history、当前 trusted executor 的历史 provider query/cancel、以及合成 provider 的独立 attempt/effect/operation journal。新 feature 初始化验证 live installation/instance/boot/channel/epoch lease，发现 capability 时只暴露当前允许的 counter descriptor；legacy readonly 初始化与调用仍保持原语义。测试覆盖独立进程预算与 approval/cancel 竞争、真实 SQLite busy 与 deferred COMMIT failure、精确 approval binding、context/provider 代际、cancel/terminal 顺序、持久 observation 版本、old-session fencing、四个真实 SIGKILL 边界、v0 legacy grant/admission/audit 备份升级、迁移 rollback/reopen/future rejection，以及固定 sandbox 的 allow/cancel-first/forged/ungranted T003 mode。
+- **本机验证**：macOS Node `v24.16.0` / SQLite `3.53.1` 下，`npm run format:check`、`npm run lint` 与 `npm test` 均退出 `0`；完整 Node test 为 `60/60` 通过。独立代码 reviewer 对最终三项测试 delta 及此前 core/CLI/Linux delta 复核无剩余 blocker；主 Agent 另行执行 USE-002 的五个 CLI journey。
+- **最终 VM 验证**：最终 71 个公共输入清单为 `artifacts/private/t003-20261026/vm-final-manifest.json`，SHA-256 `5d610f12abcb4c2b128d96f821342072ff147a4440b2113bc7207bc3b96cc31b`；Python `tarfile` 仅打包这些 regular source files，archive SHA-256 `ea0e253b15cf7cf9c983a06048e3b5e8646f9f980a23922724f98e0cc999547b`。专用 ARM64 Ubuntu 24.04.4 / Linux `6.8.0-100` Colima profile 在 fresh `/tmp/qdroid-t003-final-S5X36E` 中逐项验证 71/71；官方 Node `v24.16.0` / npm `11.13.0` / SQLite `3.53.0`。`npm ci --ignore-scripts --no-audit --no-fund`、`format:check`、`lint`、`npm test` 均退出 `0`（60/60）。以显式 Docker `default` context 从 fixture directory 构建 immutable image `sha256:ba0d9c3ddb249ef76ea8a369b17de94e5cce92d4f88d67bfbdcf81b50e386f0f`；同一 image 的完整 `QDROID_T002_IMAGE=<image> npm run test:linux` 重验退出 `0`（1/1），保留 T002 qualification 与 seven first-call assertions，并通过 T003 allow succeeded attempts/effects `1/1`、cancel-first canceled `0/0`、forged `QD_VALIDATION_FAILED`、ungranted `QD_PERMISSION_DENIED`。
+- **失败史与清理**：这一次最终 Linux suite 的首次运行在 T002 output-limit container cleanup 以 `The fixed-profile workload container could not be removed.` 失败；Docker events 显示该 output container 后来 stop/destroy，`docker ps -a` 已为空。没有将该单次现象归因于环境；在同一 manifest/image、无残留容器条件下进行一次有界重验后通过。保留首次失败、Docker events、成功重验与全部 VM 原始日志于 `artifacts/private/t003-20261026/vm-final-logs/`。完成后只删除本任务拥有的三个 `/tmp/qdroid-t003*` VM source roots，并复查 `io.qdroid.sandbox` label 没有残留 container；未改 sandbox profile、权限或 runtime qualifier。
+
 ## 验证记录（实际）
+
+- **T003 主 Agent 集成与最终接受（2026-10-26）**：最终实测/独立评审 manifest 为 `5d610f12abcb4c2b128d96f821342072ff147a4440b2113bc7207bc3b96cc31b`，逐项核对 71 输入；运行后只有工程证据追加，runtime/tests/image/lock/profile 未变。本机 USE-002 五种 CLI 均退出 0：allow attempts/effects 1/1，cancel-first、forged、ungranted 为 0/0；recovery 从 dispatched→unknown（1/0），原 operation 完成后经 authoritative query→succeeded，最终仍只有一次 attempt。在专用 VM 独立解包校验同一 71 输入、安装锁定依赖后，实际运行 `npm run linux:demo -- --image sha256:ba0d9c3ddb249ef76ea8a369b17de94e5cce92d4f88d67bfbdcf81b50e386f0f` 退出 0；原始 JSON 的十一场景均 completed/exit 0/final response consumed，binding 与当前 boot 一致，四协议正控制 true、负向 packet 0，I/O 为 16777216 bytes / 15950.52127 ms / 1048576 B/s。已读取 VM 60/60 与 Linux 1/1 的原始日志及保留的首轮 cleanup 失败。最终 label 容器查询与 I/O 目录为空，独立 CLI 的专用 VM 临时目录已删除；日志在 `artifacts/private/t003-20261026/`。首条 CLI 准备命令因 SSH 继承宿主仓库工作目录失败，改从 `/` 执行后完成，当时尚未运行资格/工作负载。接受 T003 固定 synthetic provider 范围，T004—T012、完整多 profile 资格与 T1 待实施，正式 Feature Validate/Review/Release 保持 pending。后续只做文档/lifecycle 收尾，不改变实测代码。
 
 - **额外定向诊断授权（2026-10-26）**：用户明确允许在既有一次诊断之外，再做一轮、最多 20 分钟的定向诊断；此前失败史和次数不重置。本轮窗口从 UTC 04:01:28 至 04:21:28，只增加有界状态记录并运行一次既定 Linux 套件，固定镜像、profile、限额及文件级 I/O 方法均不变。可证伪假设为：通用 I/O 失败来自读尚未完成时的 deadline、读已完成后的进程存活，或非零退出之一；使用已有 stopReason、exitCode、cleanup、ready/read-complete 状态、读耗时与有限 stderr 区分。无明确因果证据则结束该诊断并保留现场；有证据后由主 Agent 确认方案，再修正并重验。诊断不代表资格通过，也不启用后续 Task、真实设备/账号/模型。
 - **T002 恢复验收基线（2026-10-26）**：基础提交为 `ef847bf`，T002 为未提交工作树，lifecycle 仍为 in_progress。历史较早草稿在专用 ARM64 Linux VM 上 TAP 2/2，允许调用计数 1，none/deny/伪造主体/重复 key 计数 0；其后源码、镜像与资格探针均有变化，旧通过不能作为当前验收证据。一次通道故障已定位为 Docker create 未启用 stdin，并已修正；另一次资格失败后的有界单次诊断复跑通过但未定位瞬态原因，该诊断 allowance 已使用，保留失败历史，不因恢复、换实现者或新版本重置。后续如再次满足连续两次无验收进展/无新因果证据条件，停止该段并报告，不再追加诊断。
@@ -452,6 +478,8 @@ I/O 生命周期修正后的完整验收已得到 16777216 字节的实际读增
 - **T002 主 Agent 最终接受（2026-10-26）**：最终 37 输入 manifest `499cec3f8dc20db1bb68d85be2e8408de39fae70e80de1ddb530217bb1f7a76b` 已与本地/VM 及独立复核的源码逐项匹配；原始 VM contract 28/28、Linux 2/2、四协议 receipts/负向计数、七场景 side effect counts 与清理日志已实际读取核对。最终 Linux I/O 为 16777216 bytes / 15957.337871 ms / 1048576 B/s。此前主 Agent CLI 使用相同 image、fixture、profile 与正常控制路径；其后只改 TCP 失败取消及其 tests，独立 reviewer 确认正常连接行为不变，故保留对应 CLI 证据而不重复同一演示。接受 T002 固定 ARM64 simulator 最低 profile；T003—T012、T004 完整资格矩阵、T1、账号和模型仍未完成。提交保存相同运行输入，前后仅交付文档和 lifecycle 状态收尾不影响这些运行证据。
 
 ## 评审记录（实际）
+
+- **T003 独立代码复核（2026-10-26）**：首个 70 文件快照 `438dcd74a9d69eb11289dd6ac345d2282bbbe24ca5c5f4e365a223caedfae07d` 定位等 epoch 身份复活、新 executor 历史 cancel/reconcile ownership、取消落盘失败误分类三个实现缺陷，以及 SIGKILL/验收缺口；同一实现者修复。71 文件增量快照 `ad9058dcae9380eb19f62fa9a4eeaf8e8d16d4d6472557de2d4595f0cc978dd9` 确认 core、初始化/discovery、CLI/Linux 无其他 runtime blocker，要求补真实 v0 历史、原 T002 assertions、失败子进程清理。最终快照与实测 manifest 同为 `5d610f12abcb4c2b128d96f821342072ff147a4440b2113bc7207bc3b96cc31b`，71/71 hash 匹配，仅三份测试 delta，独立 reviewer 确认全部解决，无剩余 blocker。复核只读，未运行测试或 VM；主 Agent 聚合实际运行证据后接受。第 5 项文字澄清固定 provider contract digest 与另存的路由 provider binding，与公共规范/实测实现一致，不改变 lookup scope、权限、持久化格式或行为。
 
 - **T002 最终独立差异复核（2026-10-26）**：恢复差异快照（63 文件，manifest `aaca743119da2d0da323b5e94751a050fb3289229d79f5b0f51514fe3f1dbf43`）复核 I/O 输入释放/有限诊断、EROFS 写入控制及 guest 进程观察器，未发现 P1/P2 或权限/可读性阻塞。网络差异快照（64 文件，`e336a2b7d570df7784852ff284ff80c31ed1c7957ed3653c60e8061e4a5282da`）确认逐协议正控制与 reset 正确，另发现 TCP timeout 只 end 未取消 pending socket 的 P2；同一实现者修正并补回归。最终 TCP 修正快照（64 文件，`ed6d5bfe22ef07051aa1e4a0c8c2d80d5ace80ad1bd1d072eef1ce77d29dc62a`）独立复核确认原 P2 已解决、无新增可操作发现。最终 runtime 源 SHA-256 `7d145ae0fd330f3a6c51253ab6ac02a071582de15b9154406eb91e4bf5f0043f` 与 network test `345ff6cf339c7118d8c30249b19caf02d403e3d2bdefe66c30a83c56cae8fbf2` 均匹配最终测试 manifest；connector 注入仅为可信模块测试接口，不是 workload API。独立 review 全程只读，没有运行测试/VM/Git 或改 state。非阻塞 P3：held-stdin 测试可补自身 close 等待期限，避免未来回归时挂住；当前运行与产品隔离证据不受此测试健壮性建议影响。主 Agent 已合并实际 Linux/CLI 证据接受本 Task；正式 Feature Validate/Review/Release 保持 pending。
 

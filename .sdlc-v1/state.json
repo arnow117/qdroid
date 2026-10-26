@@ -39,9 +39,9 @@
             "T002"
           ],
           "id": "T003",
-          "status": "todo",
+          "status": "done",
           "title": "原子 admission、取消与未知结果恢复",
-          "updated_at": "2026-10-23T06:14:12Z"
+          "updated_at": "2026-10-26T07:30:51Z"
         },
         "T004": {
           "depends_on": [
@@ -128,7 +128,7 @@
           "updated_at": "2026-10-23T06:14:14Z"
         }
       },
-      "updated_at": "2026-10-26T05:09:55Z",
+      "updated_at": "2026-10-26T07:30:51Z",
       "validation": {
         "at": null,
         "command": null,
@@ -149,7 +149,7 @@
       "product_context_ref": ".sdlc-v1/context/REQ-MVP-001.product.md",
       "status": "in_delivery",
       "title": "可移植机器人应用运行时的受限 MVP",
-      "updated_at": "2026-10-26T05:09:55Z"
+      "updated_at": "2026-10-26T07:30:51Z"
     }
   },
   "state_format": "sdlc-lightweight-state-v1",

@@ -85,6 +85,10 @@ export const FIXED_READONLY_PROFILE: FixedSandboxProfile = Object.freeze({
 });
 
 export type WorkloadMode =
+  | 'admission-allow'
+  | 'admission-cancel-first'
+  | 'admission-forged-authority'
+  | 'admission-ungranted'
   | 'allow'
   | 'deny'
   | 'duplicate-key'
@@ -1683,7 +1687,13 @@ export class DockerSandboxManager {
   }
 }
 
-function finalResponseRequestId(mode: WorkloadMode): 'duplicate-key' | 'invoke' | 'unsupported' {
+function finalResponseRequestId(
+  mode: WorkloadMode,
+): 'cancel' | 'duplicate-key' | 'invoke' | 'unsupported' {
+  if (mode === 'admission-cancel-first') {
+    return 'cancel';
+  }
+
   if (mode === 'duplicate-key') {
     return 'duplicate-key';
   }

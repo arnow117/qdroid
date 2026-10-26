@@ -43,6 +43,42 @@ Example invocation:
 
 The host derives subject, installation, task grant, allowed provider, risk and maximum lease. The optional key does not manufacture downstream idempotency; its actual guarantee is returned by the provider contract.
 
+## Fixed admission feature contract (T003)
+
+The implementation contract adds the explicitly negotiated required feature
+`qdroid.admission/v1` to `qdroid.rpc/v0.1`. Existing clients with no required
+features retain the restricted read-only fixture. A runtime without the configured
+trusted admission executor rejects the new required feature. Unknown fields remain
+errors; this feature is not permission to invoke a capability.
+
+The synthetic `sim.counter.add/v1` capability uses schema
+`qdroid.capability.sim.counter.add/v1` and exact arguments
+`{counterId: "counter.default", amount: integer 1..10}`. Its invocation also requires
+a non-empty, bounded, well-formed Unicode `idempotencyKey` (at most 128 UTF-16 code units).
+It creates a queued TaskHandle; only the trusted scheduler can submit that intent.
+Same installation/instance/key reuses the original task across channel or epoch
+changes, while a different canonical operation conflicts without dispatch. A new
+current binding permits scoped queries; an old binding cannot regain authority.
+`tasks.cancel` accepts only `{taskId, reason}` with a non-empty, well-formed Unicode reason of at most
+256 UTF-16 code units, and returns the cancellation marker and actual task state.
+
+Policy, grants, approvals, execution contexts, dispatch and reconciliation are
+trusted service interfaces. Workloads cannot supply their identifiers as execution
+authority or publish provider evidence. The fixed counter is synthetic and receives
+its own explicit grant; it does not enable robot or external-account writes.
+Queued cancellation and dispatch share one durable ordering point. Accepted-only
+providers immediately produce unknown when observation is unsupported; an expired
+bounded observation window also produces unknown. Neither creates a new send
+right or refunds committed use.
+
+For the fixed synthetic provider, each operation has a durable, monotonically
+versioned, immutable terminal outcome. Completion winning its provider transaction
+means later stop requests return the completed outcome; a stop winning first
+prevents later effects. Notifications only trigger a trusted query of that current
+record. Reverse delivery of completion and stop notifications therefore cannot
+select a terminal state by arrival order. Providers lacking equivalent evidence
+must retain unknown rather than report a verified stop.
+
 ## CapabilityProvider port
 
 Illustrative structural types; the normative implementation must supply per-capability JSON Schema and conformance tests.
@@ -108,7 +144,7 @@ Journal intent before side effects. PolicyAuthority transactionally owns dispatc
 
 Recovery queries authoritative state where supported; it does not resume motion or external writes solely because a dispatch record exists. A crash at an ambiguous boundary produces unknown. Preserve historical evidence; reconciliation can resolve unknown only from authoritative evidence, with a new state version. Committed unknown uses are not automatically refunded, and idempotent repeat requests cannot debit or dispatch anew outside their existing admission record.
 
-Deduplication scope is `(installation, operation, key, request digest, provider epoch/contract)`. Reusing a key with different canonical input is rejected. A recorded response can be replayed only within its actual contract. Idempotency is not inferred from HTTP method, tool name or the existence of this host journal.
+A versioned deduplication namespace and key identify one durable operation. Its immutable record binds the canonical input digest and provider identity/epoch/contract. A changed digest conflicts, and changing an epoch cannot issue another send right for an existing key. The fixed admission feature uses `(installation, stable instance, key)` for lookup; its binding survives channel and epoch changes. Other capabilities must define their namespace explicitly. A recorded response can be queried or replayed only within its actual contract and current object ACL. Idempotency is not inferred from HTTP method, tool name or the existence of this host journal.
 
 ## Errors
 

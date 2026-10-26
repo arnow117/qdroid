@@ -1,5 +1,14 @@
 import { createTrustedFixtureDriver } from '../../../fixtures/readonly-sim/src/driver.js';
 import { runLinuxReadonlyFixtureSuite } from '../../../fixtures/readonly-sim/src/linux-broker.js';
+import { createAdmissionFixture } from '../../../fixtures/admission/src/driver.js';
+import {
+  ADMISSION_FEATURE,
+  COUNTER_SIM_CAPABILITY,
+  COUNTER_SIM_RESOURCE,
+  COUNTER_SIM_SCHEMA_VERSION,
+  type JsonRpcResponse,
+  type JsonValue,
+} from '../../../packages/contracts/src/index.js';
 
 const [command, ...argumentsValue] = process.argv.slice(2);
 
@@ -48,8 +57,107 @@ async function main(): Promise<void> {
     return;
   }
 
+  if (command === 'admission-demo') {
+    const mode = parseAdmissionMode(argumentsValue);
+
+    if (mode === undefined) {
+      writeUsage();
+      process.exitCode = 1;
+      return;
+    }
+
+    await runAdmissionDemo(mode);
+    return;
+  }
+
   writeUsage();
   process.exitCode = 1;
+}
+
+async function runAdmissionDemo(
+  mode: 'allow' | 'cancel-first' | 'forged' | 'recovery' | 'ungranted',
+): Promise<void> {
+  const fixture = createAdmissionFixture(
+    mode === 'recovery' ? { observationDeadlineMs: 5, observationMode: 'accepted' } : {},
+  );
+
+  try {
+    const initialize = fixture.channel.request({
+      jsonrpc: '2.0',
+      id: 'initialize-admission',
+      method: 'runtime.initialize',
+      params: {
+        protocolVersion: 'qdroid.rpc/v0.1',
+        requiredFeatures: [ADMISSION_FEATURE],
+      },
+    });
+    if (mode === 'allow' || mode === 'cancel-first' || mode === 'forged' || mode === 'recovery') {
+      fixture.applyGrant({
+        effect: 'allow',
+        expiresAt: Date.now() + 60_000,
+        maxAmount: 10,
+        remainingUses: 1,
+      });
+    }
+
+    const invocationParams: Record<string, JsonValue> = {
+      arguments: { amount: 1, counterId: COUNTER_SIM_RESOURCE },
+      capability: COUNTER_SIM_CAPABILITY,
+      idempotencyKey: `cli-${mode}`,
+      schemaVersion: COUNTER_SIM_SCHEMA_VERSION,
+    };
+    if (mode === 'forged') {
+      invocationParams.principal = 'caller-supplied-authority';
+    }
+    const invocation = fixture.channel.request({
+      jsonrpc: '2.0',
+      id: 'invoke-admission',
+      method: 'capabilities.invoke',
+      params: invocationParams,
+    });
+    const taskId = responseTaskId(invocation);
+    const finalTask =
+      taskId === undefined
+        ? undefined
+        : mode === 'allow'
+          ? fixture.core.dispatchQueuedCounterTask(fixture.channel.trustedBinding, taskId)
+          : mode === 'cancel-first'
+            ? fixture.channel.request({
+                jsonrpc: '2.0',
+                id: 'cancel-admission',
+                method: 'tasks.cancel',
+                params: { reason: 'CLI cancellation fixture', taskId },
+              })
+            : mode === 'recovery'
+              ? await reconcileAcceptedFixture(fixture, taskId)
+              : undefined;
+
+    console.log(
+      JSON.stringify(
+        {
+          executionScope:
+            'trusted local admission fixture; use USE-002 for Linux sandbox execution',
+          finalTask,
+          initialize,
+          invocation,
+          mode,
+          provider: {
+            attempts: fixture.counter.attemptCount,
+            effects: fixture.counter.effectCount,
+            value: fixture.counter.counterValue(),
+          },
+          recovery: {
+            instruction:
+              'For QD_OUTCOME_UNKNOWN, call tasks.get then trusted reconciliation; do not reuse the key to resend.',
+          },
+        },
+        null,
+        2,
+      ),
+    );
+  } finally {
+    fixture.close();
+  }
 }
 
 function runDemo(grantMode: 'allow' | 'deny' | 'none'): void {
@@ -119,7 +227,65 @@ function parseLinuxImage(argumentsValue: string[]): string | undefined {
   return image === undefined || image.length === 0 || image.length > 300 ? undefined : image;
 }
 
+function parseAdmissionMode(
+  argumentsValue: string[],
+): 'allow' | 'cancel-first' | 'forged' | 'recovery' | 'ungranted' | undefined {
+  if (argumentsValue.length === 0) {
+    return 'allow';
+  }
+  if (argumentsValue.length !== 2 || argumentsValue[0] !== '--fixture') {
+    return undefined;
+  }
+  const mode = argumentsValue[1];
+  return mode === 'allow' ||
+    mode === 'cancel-first' ||
+    mode === 'forged' ||
+    mode === 'recovery' ||
+    mode === 'ungranted'
+    ? mode
+    : undefined;
+}
+
+async function reconcileAcceptedFixture(
+  fixture: ReturnType<typeof createAdmissionFixture>,
+  taskId: string,
+): Promise<{
+  afterAuthoritativeQuery: unknown;
+  attemptsAfterUnknown: number;
+  effectsAfterUnknown: number;
+  unknown: unknown;
+}> {
+  const dispatched = fixture.core.dispatchQueuedCounterTask(fixture.channel.trustedBinding, taskId);
+  await new Promise((resolve) => setTimeout(resolve, 15));
+  const unknown = fixture.core.reconcileCounterTask(fixture.channel.trustedBinding, taskId);
+  const attemptsAfterUnknown = fixture.counter.attemptCount;
+  const effectsAfterUnknown = fixture.counter.effectCount;
+  fixture.counter.completeAccepted(unknown.admissionId, unknown.providerEpoch);
+  const afterAuthoritativeQuery = fixture.core.reconcileCounterTask(
+    fixture.channel.trustedBinding,
+    taskId,
+  );
+
+  return {
+    afterAuthoritativeQuery,
+    attemptsAfterUnknown,
+    effectsAfterUnknown,
+    unknown: { dispatched, state: unknown.state },
+  };
+}
+
+function responseTaskId(response: JsonRpcResponse): string | undefined {
+  if ('error' in response) {
+    return undefined;
+  }
+  const task = (response.result as { task?: { taskId?: unknown } }).task;
+  return typeof task?.taskId === 'string' ? task.taskId : undefined;
+}
+
 function writeUsage(): void {
   console.error('Usage: qdroid demo [--fixture allow|deny|none]');
+  console.error(
+    '       qdroid admission-demo [--fixture allow|cancel-first|forged|recovery|ungranted]',
+  );
   console.error('       qdroid linux-demo --image <qualified-fixture-image>');
 }

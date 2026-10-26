@@ -22,8 +22,9 @@
     "format": "prettier --write --ignore-unknown package.json tsconfig.json .prettierrc.json THIRD_PARTY_NOTICES.md packages apps adapters fixtures tests scripts profiles/hosts docs/USAGE.md",
     "format:check": "prettier --check --ignore-unknown package.json tsconfig.json .prettierrc.json THIRD_PARTY_NOTICES.md packages apps adapters fixtures tests scripts profiles/hosts docs/USAGE.md",
     "lint": "npm run check:runtime && tsc --project tsconfig.json --noEmit",
-    "test": "npm run build && node --test dist/tests/contracts/*.test.js",
-    "test:linux": "npm run build && node scripts/require-linux-image.mjs && node --test dist/tests/linux/first-call/*.test.js",
+    "test": "npm run build && node --test dist/tests/contracts/*.test.js dist/tests/admission/*.test.js dist/tests/recovery/*.test.js",
+    "test:admission": "npm run build && node --test dist/tests/admission/*.test.js dist/tests/recovery/*.test.js",
+    "test:linux": "npm run build && node scripts/require-linux-image.mjs && node --test dist/tests/linux/admission/*.test.js",
     "demo": "npm run build && node dist/apps/cli/src/index.js demo",
     "linux:demo": "npm run build && node dist/apps/cli/src/index.js linux-demo"
   },

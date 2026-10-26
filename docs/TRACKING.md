@@ -32,9 +32,11 @@ GitHub state is a human-maintained projection. Closing an issue does not automat
 
 ## Current scope
 
-T001 and T002 are accepted implementation increments. T001 established the trusted host-driver path; T002 verifies real supervisor-bound simulator calls in one fixed ARM64 Linux/gVisor profile. Remaining MVP tasks are planned. A completed design/setup issue is separate from the runtime epic and cannot close the MVP acceptance.
+T001 through T003 are accepted implementation increments. T001 established the trusted host-driver path; T002 verifies real supervisor-bound simulator calls in one fixed ARM64 Linux/gVisor profile. T003 adds atomic admission, cancellation ordering, and authoritative recovery without resending unknown work. T004 through T012 are planned. A completed design/setup issue is separate from the runtime epic and cannot close the MVP acceptance.
 
 The final T002 source passed formatting, TypeScript checks and 28 contract tests on the development host and Linux VM, followed by both real Linux tests. Every synthetic TCP/IPv4, UDP/IPv4, DNS/UDP and TCP/IPv6 target received its broker control; the sandbox-negative probe delivered zero packets. The allowed simulator call performed one operation; all six rejected modes performed zero and consumed their final responses before normal exit. Main-agent CLI integration also passed, and independent source review confirmed the lifecycle and timeout cleanup fixes. The final input manifest, immutable image, I/O measurements and retained failure history are recorded in the engineering context. Task containers and synthetic I/O files were removed. This completes the fixed T002 fixture, while general qualification, package installation and T1 acceptance remain pending.
+
+T003 passed 60 cumulative tests on both the host and Linux VM, including independent-process races, four real SIGKILL boundaries, migration, and failure paths. The Linux suite retained all T002 assertions and added four sandbox admission scenarios. Main-agent integration passed five local CLI modes and the public Linux CLI's eleven scenarios, and independent code review has no remaining blocker. The first Linux suite attempt exceeded the existing output-limit cleanup deadline; its logs remain alongside the successful same-input retry, without an asserted root cause. M0 is 3/4 tasks complete; formal Feature Validate/Review/Release remain pending.
 
 The initial publication uses `codex/project-foundation` as the first branch; it is not a product release. Later implementation follows the Feature's registered branch or a controlled branch-registration migration. Do not invent branch changes from a task description.
 
@@ -62,7 +64,7 @@ Before publication, inspect the explicit file list and diff, confirm personal ag
 
 ## Registered task links
 
-`FEAT-MVP-001` is `in_progress`; T001 and T002 are `done`, and T003 through T012 remain `todo`. Exact progress is owned by lifecycle state.
+`FEAT-MVP-001` is `in_progress`; T001 through T003 are `done`, and T004 through T012 remain `todo`. Exact progress is owned by lifecycle state.
 
 | Lifecycle Task | GitHub Issue | Milestone |
 |---|---|---|
@@ -79,4 +81,4 @@ Before publication, inspect the explicit file list and diff, confirm personal ag
 | T011 | [#13 — T1 媒体导入、串行播放与本地恢复](https://github.com/arnow117/qdroid/issues/13) | M3 |
 | T012 | [#14 — T1 语音触摸交互与资源预算集成](https://github.com/arnow117/qdroid/issues/14) | M3 |
 
-Detailed scope, dependencies and acceptance are owned by the [engineering context](../.sdlc-v1/context/FEAT-MVP-001.engineering.md). The authorized T001/T002 Build segment is complete; its commit/push and tracking updates are part of the same authorization. T003 is the next dependent task, while further MVP implementation and real device/account/model access require their own scope and prerequisites.
+Detailed scope, dependencies and acceptance are owned by the [engineering context](../.sdlc-v1/context/FEAT-MVP-001.engineering.md). The authorized T001/T002/T003 implementation and validation are accepted; commit/push and tracking updates are part of the same authorization. T004 and later implementation, device/account/model access remain outside this authorization.

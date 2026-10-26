@@ -89,6 +89,47 @@ test('the workload rejects a final response that does not match its invocation',
   }
 });
 
+test('the admission cancellation workload negotiates the feature and confirms its cancel response', async () => {
+  const child = spawn(process.execPath, [workloadClientPath, 'admission-cancel-first'], {
+    stdio: ['pipe', 'pipe', 'pipe'],
+  });
+  const requestIds: string[] = [];
+  let stderr = '';
+  let stdoutBuffer = '';
+
+  child.stdout.on('data', (chunk: Buffer) => {
+    stdoutBuffer += chunk.toString('utf8');
+
+    for (;;) {
+      const newline = stdoutBuffer.indexOf('\n');
+      if (newline === -1) {
+        break;
+      }
+      const line = stdoutBuffer.slice(0, newline);
+      stdoutBuffer = stdoutBuffer.slice(newline + 1);
+      const request = JSON.parse(line) as { id?: string };
+      requestIds.push(request.id ?? 'missing');
+      const result =
+        request.id === 'invoke' || request.id === 'cancel'
+          ? { task: { taskId: 'counter-task-fixture' } }
+          : {};
+      child.stdin.write(`${JSON.stringify({ id: request.id, jsonrpc: '2.0', result })}\n`);
+    }
+  });
+  child.stderr.on('data', (chunk: Buffer) => {
+    stderr += chunk.toString('utf8');
+  });
+
+  try {
+    const exitCode = await exitsWithin(child, 1_000);
+    assert.equal(exitCode, 0);
+    assert.deepEqual(requestIds, ['initialize', 'invoke', 'cancel']);
+    assert.match(stderr, /final-response-confirmed=cancel/);
+  } finally {
+    child.kill('SIGKILL');
+  }
+});
+
 async function exitsWithin(
   child: ReturnType<typeof spawn>,
   timeoutMs: number,

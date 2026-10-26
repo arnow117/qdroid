@@ -3,8 +3,15 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 
-import { ReferenceSimulator } from '../../../adapters/reference-simulator/src/index.js';
-import type { JsonRpcResponse } from '../../../packages/contracts/src/index.js';
+import {
+  PersistentCounterSimulator,
+  ReferenceSimulator,
+} from '../../../adapters/reference-simulator/src/index.js';
+import {
+  COUNTER_SIM_CAPABILITY,
+  COUNTER_SIM_RESOURCE,
+  type JsonRpcResponse,
+} from '../../../packages/contracts/src/index.js';
 import { RuntimeCore } from '../../../packages/core/src/index.js';
 import {
   DockerSandboxManager,
@@ -35,6 +42,10 @@ export interface LinuxFixtureScenarioResult {
 
 export interface LinuxFixtureSuiteResult {
   activeDeny: LinuxFixtureScenarioResult;
+  admissionAllow: LinuxAdmissionScenarioResult;
+  admissionCancelFirst: LinuxAdmissionScenarioResult;
+  admissionForgedAuthority: LinuxAdmissionScenarioResult;
+  admissionUnGranted: LinuxAdmissionScenarioResult;
   allow: LinuxFixtureScenarioResult;
   deny: LinuxFixtureScenarioResult;
   duplicateKey: LinuxFixtureScenarioResult;
@@ -42,6 +53,12 @@ export interface LinuxFixtureSuiteResult {
   none: LinuxFixtureScenarioResult;
   qualification: QualificationEvidence;
   unsupportedMethod: LinuxFixtureScenarioResult;
+}
+
+export interface LinuxAdmissionScenarioResult extends LinuxFixtureScenarioResult {
+  counterAttemptCount: number;
+  counterEffectCount: number;
+  taskState: string | undefined;
 }
 
 /**
@@ -56,6 +73,30 @@ export async function runLinuxReadonlyFixtureSuite(
 
   return {
     activeDeny: await runScenario(sandboxManager, qualification, ['allow', 'deny'], 'deny'),
+    admissionAllow: await runAdmissionScenario(
+      sandboxManager,
+      qualification,
+      'admission-allow',
+      true,
+    ),
+    admissionCancelFirst: await runAdmissionScenario(
+      sandboxManager,
+      qualification,
+      'admission-cancel-first',
+      true,
+    ),
+    admissionForgedAuthority: await runAdmissionScenario(
+      sandboxManager,
+      qualification,
+      'admission-forged-authority',
+      true,
+    ),
+    admissionUnGranted: await runAdmissionScenario(
+      sandboxManager,
+      qualification,
+      'admission-ungranted',
+      false,
+    ),
     allow: await runScenario(sandboxManager, qualification, ['allow'], 'allow'),
     deny: await runScenario(sandboxManager, qualification, ['deny'], 'deny'),
     duplicateKey: await runScenario(sandboxManager, qualification, ['allow'], 'duplicate-key'),
@@ -126,6 +167,78 @@ async function runScenario(
   }
 }
 
+async function runAdmissionScenario(
+  sandboxManager: DockerSandboxManager,
+  qualification: QualificationEvidence,
+  mode: Extract<WorkloadMode, `admission-${string}`>,
+  grantAllowed: boolean,
+): Promise<LinuxAdmissionScenarioResult> {
+  const databaseDirectory = await mkdtemp(join(tmpdir(), 'qdroid-t003-policy-'));
+  const policyDatabasePath = join(databaseDirectory, 'policy.sqlite');
+  const providerDatabasePath = join(databaseDirectory, 'provider.sqlite');
+  const policy = new PolicyAuthority(policyDatabasePath);
+  const counter = new PersistentCounterSimulator({ databasePath: providerDatabasePath });
+  const core = new RuntimeCore({
+    counterProvider: counter,
+    policy,
+    provider: new ReferenceSimulator(),
+  });
+  const supervisor = await createLinuxSupervisor((identity, request) =>
+    core.handle(identity, request),
+  );
+  const installationId = `installation-${randomUUID()}`;
+  const channel = supervisor.createBoundChannel({ installationId });
+
+  try {
+    const identity = channel.trustedBinding;
+    policy.registerTrustedCounterContext({
+      identity,
+      leaseExpiresAt: Date.now() + 60_000,
+      profileGeneration: 1,
+      providerEpoch: 1,
+      providerId: 'persistent-reference-counter',
+    });
+    if (grantAllowed) {
+      policy.applyCounterGrant({
+        effect: 'allow',
+        expiresAt: Date.now() + 60_000,
+        installationId,
+        maxAmount: 10,
+        remainingUses: 1,
+        resourceId: COUNTER_SIM_RESOURCE,
+        subjectInstanceId: channel.trustedInstanceId,
+      });
+    }
+
+    const sandbox = await sandboxManager.createSandbox(qualification, channel);
+    const execution = await sandboxManager.runWorkload(qualification, sandbox, channel, mode);
+    const finalResponse = selectInvocationResponse(execution);
+    const admissionTaskId = responseTaskId(finalResponse);
+    const task =
+      admissionTaskId === undefined
+        ? undefined
+        : mode === 'admission-allow'
+          ? core.dispatchQueuedCounterTask(identity, admissionTaskId)
+          : policy.getCounterTask(identity, admissionTaskId);
+
+    return {
+      binding: sandbox.binding,
+      counterAttemptCount: counter.attemptCount,
+      counterEffectCount: counter.effectCount,
+      errorCode: responseErrorCode(finalResponse),
+      exitCode: execution.exitCode,
+      simulatorOperationCount: 0,
+      stopReason: execution.stopReason,
+      taskState: task?.state,
+      workloadReceivedResponse: execution.workloadReceivedResponse,
+    };
+  } finally {
+    counter.close();
+    policy.close();
+    await rm(databaseDirectory, { force: true, recursive: true });
+  }
+}
+
 function selectInvocationResponse(execution: {
   cleanupConfirmed: boolean;
   exitCode: number;
@@ -136,7 +249,8 @@ function selectInvocationResponse(execution: {
 }): JsonRpcResponse {
   const { responses } = execution;
   const invocation = responses.find(
-    (response) => response.id === 'invoke' || response.id === 'unsupported',
+    (response) =>
+      response.id === 'cancel' || response.id === 'invoke' || response.id === 'unsupported',
   );
 
   if (invocation !== undefined) {
@@ -166,4 +280,12 @@ function selectInvocationResponse(execution: {
 
 function responseErrorCode(response: JsonRpcResponse): string | undefined {
   return 'error' in response ? response.error.data.code : undefined;
+}
+
+function responseTaskId(response: JsonRpcResponse): string | undefined {
+  if ('error' in response) {
+    return undefined;
+  }
+  const task = (response.result as { task?: { taskId?: unknown } }).task;
+  return typeof task?.taskId === 'string' ? task.taskId : undefined;
 }
