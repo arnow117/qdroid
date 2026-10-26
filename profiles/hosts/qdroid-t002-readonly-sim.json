@@ -1,0 +1,37 @@
+{
+  "profileId": "qdroid.t002.readonly-sim/v1",
+  "authority": "Documentary only. DockerSandboxManager owns the matching fixed arguments and does not load caller-provided profile JSON.",
+  "image": {
+    "base": "ubuntu@sha256:0a9887931b0e38af2e3487ed39e29436b0535c4f3f52e57745baaf79d1898956",
+    "node": "node@sha256:2c87ef9bd3c6a3bd4b472b4bec2ce9d16354b0c574f736c476489d09f560a203"
+  },
+  "limits": {
+    "cpu": 0.5,
+    "deadlineMs": 5000,
+    "guestNproc": 32,
+    "hostPids": 256,
+    "ioBytesPerSecond": 1048576,
+    "memoryMiB": 512,
+    "scratchMiB": 16,
+    "workloadOutputBytes": 65536
+  },
+  "runtime": {
+    "capDrop": "ALL",
+    "ioDevice": "/dev/vdb",
+    "logDriver": "none",
+    "network": "none",
+    "readOnlyRoot": true,
+    "runtime": "qdroid-runsc",
+    "runtimeArgs": ["--platform=systrap", "--network=none"],
+    "user": "65532:65532"
+  },
+  "qualificationOnlySyntheticIo": {
+    "authority": "DockerSandboxManager creates a broker-owned non-secret file solely while qualifying the fixed profile. Normal workloads have no host mounts or host-path input.",
+    "backingPartition": "/dev/vdb1",
+    "containerDestination": "/opt/qdroid/io-probe.bin",
+    "fileBytes": 16777216,
+    "mountPropagation": "rprivate",
+    "mountReadOnly": true,
+    "root": "/mnt/lima-colima-qdroid-t002/qdroid-t002-io"
+  }
+}

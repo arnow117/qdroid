@@ -1,6 +1,6 @@
 # Core interface contract
 
-Status: proposed v0.1, 2026-10-23. Examples describe a future language-neutral API. No CLI, service endpoint, or TypeScript package below is implemented yet.
+Status: proposed v0.1, 2026-10-23. Examples describe the intended language-neutral API. T001 implements only the restricted initialization, discovery, read-only simulator invocation and task-query subset described in [the usage guide](../USAGE.md). Other interfaces below remain proposals; their presence is not implementation or qualification evidence.
 
 ## Compatibility and transport
 

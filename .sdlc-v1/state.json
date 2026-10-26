@@ -30,9 +30,9 @@
             "T001"
           ],
           "id": "T002",
-          "status": "todo",
+          "status": "done",
           "title": "Linux 最低隔离与允许/拒绝真实闭环",
-          "updated_at": "2026-10-23T06:14:12Z"
+          "updated_at": "2026-10-26T05:09:55Z"
         },
         "T003": {
           "depends_on": [
@@ -128,7 +128,7 @@
           "updated_at": "2026-10-23T06:14:14Z"
         }
       },
-      "updated_at": "2026-10-23T07:09:09Z",
+      "updated_at": "2026-10-26T05:09:55Z",
       "validation": {
         "at": null,
         "command": null,
@@ -149,7 +149,7 @@
       "product_context_ref": ".sdlc-v1/context/REQ-MVP-001.product.md",
       "status": "in_delivery",
       "title": "可移植机器人应用运行时的受限 MVP",
-      "updated_at": "2026-10-23T07:09:09Z"
+      "updated_at": "2026-10-26T05:09:55Z"
     }
   },
   "state_format": "sdlc-lightweight-state-v1",

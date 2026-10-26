@@ -1,6 +1,6 @@
 # 项目上下文：qdroid
 
-更新：2026-10-23。当前已有最小 trusted host-driver 源码、依赖锁和契约测试；Linux 沙箱资格与设备支持分别取证，不能从代码存在推断通过。
+更新：2026-10-26。当前已有最小 trusted host-driver 与固定 Linux OCI 路径的源码、依赖锁和契约测试；Linux 沙箱资格与设备支持分别取证，不能从代码存在推断通过。
 
 ## 项目概览与事实边界
 
@@ -18,7 +18,8 @@ qdroid 面向 Linux 机器人主控的 Agent 应用运行时，首个适配为 T
 | 产品/工程上下文 | .sdlc-v1/context/ | 当前Requirement与Feature正文 |
 | 生命周期 | .sdlc-v1/state.json | 仅由生命周期CLI修改 |
 | 计划/跟踪 | planner/、docs/TRACKING.md | 实施依赖、GitHub协作映射 |
-| 测试/fixture/运行产物 | tests/contracts/、fixtures/readonly-sim/、dist/ | 契约测试与可信host driver；dist为忽略的本地编译产物 |
+| 测试/fixture/运行产物 | tests/contracts/、tests/linux/first-call/、fixtures/readonly-sim/、dist/ | 契约测试、Linux资格与真实stdio fixture；dist为忽略的本地编译产物 |
+| 固定Linux运行 | packages/runtime-oci/、profiles/hosts/ | 可信Docker管理、固定镜像/profile和有界通道；profile JSON是说明而非授权入口 |
 | 仓库配置 | .github/、.gitignore | Issue/PR模板与私有产物忽略 |
 
 ## 技术栈与选择状态
@@ -29,13 +30,13 @@ qdroid 面向 Linux 机器人主控的 Agent 应用运行时，首个适配为 T
 | 设备provider | 语言无关进程协议；T1可用Python/rclpy或C++ | none；未安装厂家SDK |
 | Agent引擎 | pi为首候选，保留可替换接口 | none；未运行模型调用 |
 | 存储 | node:sqlite、WAL/FULL；PolicyAuthority自有fixture admission与审计 | 已有最小持久化路径；预算/取消/完整恢复仍待后续任务，禁止工作负载挂载 |
-| 软件运行 | 目标平台固定digest的OCI产物，gVisor为首隔离候选 | 专用ARM64 Linux VM/Docker/gVisor已准备；Ubuntu22.04启动预检不等于T002资格通过 |
+| 软件运行 | 目标平台固定digest的OCI产物，gVisor为首隔离候选 | 专用ARM64 Ubuntu24.04/Linux6.8开发VM，Docker29.2.1、gVisor release-20261019.0/systrap；workload固定Ubuntu22.04/Node24.16.0。最终资格见工程证据，不等于T1支持 |
 | 显示 | Scene/状态与backend分离，T1首期HTML→MP4 | none；桌面研究实验不在本仓库冒充设备验证 |
 | 外部业务 | Mock connector先验证；只读Lark适配后续真实验收 | none；未调用个人账号API |
 
 ## 入口与配置
 
-当前使用入口为 `npm run demo -- --fixture allow|deny|none` 的可信host driver；唯一操作指南为 `docs/USAGE.md`。协议参数由contracts拥有，fixture授权由受信driver持有；没有公开grant管理、宿主exec、HTTP服务或模型/账号凭据入口。该driver本身不启动不可信工作负载。
+可信host driver使用 `npm run demo -- --fixture allow|deny|none`；唯一操作指南为 `docs/USAGE.md`。固定Linux路径另由runtime-oci管理，必须先取得同一manager拥有的当前资格handle再运行，不能用外部JSON授权。协议参数由contracts拥有，fixture授权由受信driver持有；没有公开grant管理、宿主exec、HTTP服务或模型/账号凭据入口。可信host driver本身不启动不可信工作负载。
 
 安装包manifest示例与未来接口方法位于规范中，明确标为提案。真实凭据由可信connector/model服务管理；应用只能使用当前授予的受限通道。
 
@@ -51,19 +52,19 @@ commands:
   build: npm run build
 ```
 
-以上命令先执行版本检查；`lint`当前为TypeScript no-emit检查，格式检查是`npm run format:check`。没有coverage/e2e命令。实际通过版本/范围在工程上下文记录；后续新增Linux入口时再刷新，不把未来命令记成已运行。
+以上命令先执行版本检查；`lint`当前为TypeScript no-emit检查，格式检查是`npm run format:check`。没有coverage/e2e命令。实际通过版本/范围在工程上下文记录；固定 Linux 集成入口为 `QDROID_T002_IMAGE=<local-image-id> npm run test:linux`；公开 CLI 为 `npm run linux:demo -- --image <local-image-id>`，均已在专用 VM 实际执行。它们先验证固定 host/runtime/image/profile，再执行七种受监督调用；相关环境和准备步骤由唯一 usage 入口维护。
 
 ## 验证资源与准备
 
 | 项目 | 当前事实/缺口 |
 |---|---|
 | 验证方式 | correctness契约/权限测试；未来真实Web显示再补相应模式；当前内部RPC不虚构OpenAPI入口 |
-| 工具/测试资产 | Node test runner、TypeScript、Prettier；tests/contracts/runtime.test.ts；完整Linux负向资格套件待建 |
+| 工具/测试资产 | Node test runner、TypeScript、Prettier；tests/contracts/与tests/linux/first-call/已有资产；完整多profile资格矩阵仍待T004 |
 | 目标环境 | macOS可信host driver与任务专用ARM64 Linux VM；T1未接入，不存私人设备地址 |
 | 测试身份 | none；模拟秘密和Mock API优先；真实账号需单独授权 |
 | 运行产物 | runtime-data/、artifacts/private/等已ignore；公共非敏感证据在docs中记录 |
 | CI | none；模板不等于构建/测试工作流 |
-| 准备缺口 | 最终Linux镜像/profile资格、实际资源/清理证据、设备与外部集成 |
+| 准备缺口 | 其他架构、可配置/完整 Linux 资格矩阵、设备与外部集成；当前固定 ARM64 fixture 的实际资源和清理证据见工程上下文 |
 
 ## 变更面映射
 
@@ -72,7 +73,7 @@ commands:
 ```yaml
 surfaces:
   - name: core-fixture-runtime
-    globs: ["packages/**", "apps/**", "adapters/reference-simulator/**", "fixtures/**", "tests/contracts/**", "scripts/**", "package*.json", "tsconfig.json", ".prettierrc.json", "docs/USAGE.md", "THIRD_PARTY_NOTICES.md"]
+    globs: ["packages/**", "apps/**", "adapters/reference-simulator/**", "fixtures/**", "tests/contracts/**", "tests/linux/**", "profiles/hosts/**", "scripts/**", "package*.json", "tsconfig.json", ".prettierrc.json", "docs/USAGE.md", "THIRD_PARTY_NOTICES.md"]
     roles: [architect, security, server-dev, qa]
     modes: [correctness]
   - name: architecture-and-contracts

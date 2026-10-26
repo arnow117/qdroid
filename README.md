@@ -2,7 +2,7 @@
 
 Portable agent application runtime for robot hosts: capabilities, Skills, MCP, isolated tools, and interactive scenes.
 
-**Status: early implementation.** T001 provides a trusted host-driver fixture with versioned RPC, bound identities, SQLite admission/audit, and a read-only simulator. Linux isolation is the next task; the package installer and T1 adapter remain planned. Primebot T1 Pro is the first planned device target; it is not a dependency of the core architecture.
+**Status: early implementation.** T001 provides a trusted host-driver fixture with versioned RPC, bound identities, SQLite admission/audit, and a read-only simulator. T002 verifies that path in one fixed ARM64 Linux/gVisor profile, including real allowed and denied simulator calls; the package installer and T1 adapter remain planned. Primebot T1 Pro is the first planned device target; it is not a dependency of the core architecture.
 
 ## Intended experience
 
@@ -10,7 +10,7 @@ An application installs a fixed version of its Skills and tools, requests capabi
 
 Initial host scope is Linux ARM64/AMD64, subject to actual runtime qualification. MCU/RTOS controllers can be attached through a device adapter; they are not assumed to run the full harness.
 
-Run the current fixture using [the usage guide](docs/USAGE.md). This fixture is not evidence of Linux sandbox or T1 hardware qualification.
+Run the current fixture using [the usage guide](docs/USAGE.md). The guide distinguishes the trusted host fixture from the qualified fixed Linux fixture. T1 hardware qualification remains separate.
 
 ## Design documents
 
@@ -23,6 +23,7 @@ Run the current fixture using [the usage guide](docs/USAGE.md). This fixture is 
 - [MVP implementation plan](planner/sdlc-stage-plan.md)
 - [Tracking and contribution workflow](docs/TRACKING.md)
 - [Research sources and evidence limits](docs/research/2026-10-22-findings.md)
+- [Linux development baseline and relationship to T1](docs/research/2026-10-23-linux-baseline.md)
 
 ## MVP target
 

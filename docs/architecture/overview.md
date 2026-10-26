@@ -1,6 +1,6 @@
 # Architecture and authority boundaries
 
-Status: proposed v0.1 contract, 2026-10-23. No component below is an implemented or qualified runtime yet.
+Status: v0.1 architecture contract, 2026-10-26. The trusted simulator path is implemented; the fixed ARM64 Linux sandbox path has passed its T002 fixture qualification. The remaining components describe the target design, with task evidence maintained in the engineering context.
 
 ## Scope
 
@@ -78,7 +78,7 @@ Application, Skill/tool/MCP, renderer, device adapter, and host backend are diff
 
 ## Current choices and open implementation decisions
 
-- TypeScript is the proposed core/SDK language; provider processes can use Go, Python, or C++. No dependency lock or production build exists yet.
+- TypeScript is the implemented core/SDK language, with a dependency lock and fixture build. Provider processes can use Go, Python, or C++; no production release is declared.
 - SQLite is the initial local persistence choice, with service-owned databases and one transactional authority for admission/budgets/cancellation; no distributed database is required for the single-host MVP.
 - pi is the first agent-engine candidate. Agent/backend hooks do not replace broker checks or OS isolation.
 - OCI plus gVisor systrap is the first Linux isolation candidate. Exact versions and qualified profiles are implementation outputs, not assumed support.

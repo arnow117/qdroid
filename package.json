@@ -19,11 +19,13 @@
     "build": "npm run check:runtime && tsc --project tsconfig.json",
     "check:runtime": "node scripts/check-runtime.mjs",
     "clean": "tsc --build --clean",
-    "format": "prettier --write --ignore-unknown package.json tsconfig.json .prettierrc.json THIRD_PARTY_NOTICES.md packages apps adapters fixtures tests scripts docs/USAGE.md",
-    "format:check": "prettier --check --ignore-unknown package.json tsconfig.json .prettierrc.json THIRD_PARTY_NOTICES.md packages apps adapters fixtures tests scripts docs/USAGE.md",
+    "format": "prettier --write --ignore-unknown package.json tsconfig.json .prettierrc.json THIRD_PARTY_NOTICES.md packages apps adapters fixtures tests scripts profiles/hosts docs/USAGE.md",
+    "format:check": "prettier --check --ignore-unknown package.json tsconfig.json .prettierrc.json THIRD_PARTY_NOTICES.md packages apps adapters fixtures tests scripts profiles/hosts docs/USAGE.md",
     "lint": "npm run check:runtime && tsc --project tsconfig.json --noEmit",
     "test": "npm run build && node --test dist/tests/contracts/*.test.js",
-    "demo": "npm run build && node dist/apps/cli/src/index.js demo"
+    "test:linux": "npm run build && node scripts/require-linux-image.mjs && node --test dist/tests/linux/first-call/*.test.js",
+    "demo": "npm run build && node dist/apps/cli/src/index.js demo",
+    "linux:demo": "npm run build && node dist/apps/cli/src/index.js linux-demo"
   },
   "devDependencies": {
     "@types/node": "24.10.0",

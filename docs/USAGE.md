@@ -91,3 +91,95 @@ The CLI creates temporary fixture state and closes it before exit. Do not treat
 this driver as an external workload launcher. T002 is responsible for attaching a
 supervisor-owned channel to a qualified Linux workload and for publishing any
 sandbox evidence.
+
+### T002 Linux path: fixed first-call fixture
+
+This path runs the first real sandboxed fixture for AC-01, AC-02, AC-04, and AC-05.
+It was verified on dedicated ARM64 Linux with cgroup v2, Docker `29.2.1`, the
+`qdroid-runsc` gVisor runtime (`--platform=systrap`, `--network=none`), and the
+fixed Ubuntu 22 / Node 24.16.0 image inputs in
+[the host profile](../profiles/hosts/qdroid-t002-readonly-sim.json). These VM paths
+and the `/dev/vdb` device are development-fixture inputs, not T1 configuration.
+
+Use Node `v24.16.0` and npm `11.13.0`. The broker requires the named runtime to be
+registered before it starts; inspect it before running the suite:
+
+```sh
+export PATH=/opt/qdroid-tools/node-v24.16.0/bin:$PATH
+docker info --format '{{json .Runtimes.qdroid-runsc}}'
+```
+
+The qualification-only I/O root must already be a private directory owned by the
+broker user on Docker's `/dev/vdb1` backing partition. On the dedicated Linux VM,
+an operator can prepare that empty directory with:
+
+```sh
+sudo install -d -m 0700 -o "$(id -u)" -g "$(id -g)" \
+  /mnt/lima-colima-qdroid-t002/qdroid-t002-io
+```
+
+Build the fixture locally, resolve its immutable ID, and run the complete Linux
+qualification plus seven first-call scenarios:
+
+```sh
+docker build --tag qdroid-t002:local fixtures/readonly-sim
+image_id="$(docker image inspect --format '{{.Id}}' qdroid-t002:local)"
+QDROID_T002_IMAGE="$image_id" npm run test:linux
+```
+
+To print the qualification report and all seven scenario results from the public
+CLI, use the same local image:
+
+```sh
+npm run linux:demo -- --image "$image_id"
+```
+
+The CLI journey was independently run on the same frozen source and image. It
+exited `0`; every scenario completed with exit `0` after consuming its final
+response. The allowed call performed one simulator operation, and every rejected
+call performed zero. Task containers and qualification I/O files were absent
+afterward.
+
+The verified 2026-10-26 invocation used
+`sha256:91a138aa70d02bc0cc94b3293cd8f7d76763bcd542ea679f677dd00957125252`
+and exited `0`. Its qualification observed a `16,777,216` byte cgroup read delta
+in `15,957.337871` ms under the fixed `1,048,576` B/s I/O limit. Before the
+sandbox-negative probe, the broker reached every existing synthetic control:
+TCP/IPv4, UDP/IPv4, DNS-over-UDP using valid `qdroid.invalid` wire encoding, and
+TCP/IPv6. Every per-protocol receipt was true; after counters were reset, the
+sandbox-negative probe left their total at zero. The normal
+allow scenario completed with one simulator operation and no error; none, deny,
+active deny, forged authority, duplicate-key, and unsupported-method scenarios
+completed with zero simulator operations and their expected denial or validation
+codes.
+
+The I/O file is a non-secret, broker-created, non-sparse `0644` synthetic file.
+The manager requests cache eviction only for that file, binds it read-only at the
+fixed `/opt/qdroid/io-probe.bin` destination only during qualification, verifies
+the mount, and removes it afterward. Normal workloads receive no host mounts,
+host-path parameters, Docker socket, source tree, credentials, devices, or host
+execution. Qualification also uses a manager-owned fixed `docker exec` action to
+inspect the guest process table; the observer excludes itself and accepts only a
+separate child of workload PID 1.
+
+`QDROID_T002_IMAGE` is trusted operator input selecting an already local immutable
+fixture image; it is not a workload-controlled image or Docker-options interface.
+The manager binds qualification to the live boot, kernel, architecture, Docker,
+runtime components, profile, image, and suite fingerprint. A stale or foreign
+qualification handle is rejected.
+
+### Linux failure feedback and support boundary
+
+Omitting `QDROID_T002_IMAGE` exits nonzero with
+`QDROID_T002_IMAGE is required for the real Linux fixture suite.` A missing image,
+profile mismatch, failed qualification, or runtime failure fails closed before the
+first-call scenarios; the implementation never falls back to runc or host
+execution. Preserve the bounded error and cleanup evidence, then correct the
+trusted VM configuration or image selection before retrying.
+
+This result covers one fixed ARM64 Linux profile and the supervisor-owned stdio
+`sim.status.read/v1` first-call fixture. It does not support package installation,
+external MCP servers, models, display, real accounts, robot hardware, or the
+concurrency and recovery work assigned to later tasks. The implementation and
+evidence are tracked in [T002](https://github.com/arnow117/qdroid/issues/4) and
+the [engineering context](../.sdlc-v1/context/FEAT-MVP-001.engineering.md).
