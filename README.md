@@ -2,7 +2,7 @@
 
 Portable agent application runtime for robot hosts: capabilities, Skills, MCP, isolated tools, and interactive scenes.
 
-**Status: early implementation.** T001 provides a trusted host-driver fixture with versioned RPC, bound identities, SQLite admission/audit, and a read-only simulator. T002 verifies that path in one fixed ARM64 Linux/gVisor profile. T003 adds atomic budget/approval admission, cancellation, and recovery of unknown outcomes against a persistent synthetic counter, with Linux and crash/race evidence. Package installation, full sandbox qualification, and the T1 adapter remain planned. Primebot T1 Pro is the first planned device target; it is not a dependency of the core architecture.
+**Status: early implementation.** T001 provides a trusted host-driver fixture with versioned RPC, bound identities, SQLite admission/audit, and a read-only simulator. T002 verifies that path in one fixed ARM64 Linux/gVisor profile. T003 adds atomic budget/approval admission, cancellation, and recovery of unknown outcomes against a persistent synthetic counter, with Linux and crash/race evidence. [T004 reusable sandbox qualification](https://github.com/arnow117/qdroid/issues/6) is accepted for three offline profiles on the fixed ARM64 Linux reference environment, including bounded stdio, resource enforcement and execution crash recovery. Package installation and the T1 adapter remain planned. Primebot T1 Pro is the first planned device target; it is not a dependency of the core architecture.
 
 ## Intended experience
 

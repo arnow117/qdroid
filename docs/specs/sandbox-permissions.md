@@ -8,13 +8,13 @@ Assume a malicious or compromised Skill, local MCP server, application, generate
 
 Protect host/device credentials, unrelated files and applications, control network/device access, physical-operation authority, external account operations, and enough resources for vendor services. Read access also matters: rendered MP4, logs, model prompts, and retrieved documents may contain private data.
 
-| Class | Examples | Admission |
-|---|---|---|
-| Untrusted app/tool | Skill scripts, shell, local MCP, agent extension | Required isolation profile, task-bound capability channel |
-| Untrusted build | npm hooks, Python build backend, downloaded installers | Separate no-credential build sandbox, approved registries |
-| Untrusted render/media | HTML/JS, fonts/images/media parsers | No broker credentials, no device/network access, bounded inputs |
+| Class                  | Examples                                                    | Admission                                                               |
+| ---------------------- | ----------------------------------------------------------- | ----------------------------------------------------------------------- |
+| Untrusted app/tool     | Skill scripts, shell, local MCP, agent extension            | Required isolation profile, task-bound capability channel               |
+| Untrusted build        | npm hooks, Python build backend, downloaded installers      | Separate no-credential build sandbox, approved registries               |
+| Untrusted render/media | HTML/JS, fonts/images/media parsers                         | No broker credentials, no device/network access, bounded inputs         |
 | Trusted infrastructure | PolicyAuthority, SandboxManager, robotd, credential brokers | Admin-controlled release, least privilege, separate identity and stores |
-| Vendor services | SDK server, player, safety/manual control | Device-specific contract and integration qualification |
+| Vendor services        | SDK server, player, safety/manual control                   | Device-specific contract and integration qualification                  |
 
 An in-process plugin, Python environment, Node VM, chroot, permission prompt, or MCP read-only annotation is not this isolation boundary.
 
@@ -28,11 +28,11 @@ Cross-node service links authenticate the actual service and authorize the devic
 
 ## Three distinct records
 
-| Record | Author | Meaning |
-|---|---|---|
-| Capability request | Package/application author | The operations/resources the package asks to use |
-| Grant | Authenticated operator/administrator via PolicyAuthority | A bounded permission for a subject, capability, resources, risk and lifetime |
-| Invocation | Workload through its bound channel | A specific requested operation, requiring current checks |
+| Record             | Author                                                   | Meaning                                                                      |
+| ------------------ | -------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| Capability request | Package/application author                               | The operations/resources the package asks to use                             |
+| Grant              | Authenticated operator/administrator via PolicyAuthority | A bounded permission for a subject, capability, resources, risk and lifetime |
+| Invocation         | Workload through its bound channel                       | A specific requested operation, requiring current checks                     |
 
 Package signature, installation approval, OAuth scope, and command allowlist do not imply a qdroid operation grant. The model cannot author or approve a Grant.
 
@@ -66,17 +66,56 @@ Approval use does not imply a safe retry. After a timeout, reconcile via downstr
 
 All following profiles are planned. A profile has an immutable digest, runtime/image/platform constraints, actual feature-probe evidence, resource limits, and a qualification-suite version. The same name on another kernel does not carry qualification.
 
-| Profile | Filesystem | Network | Broker reachability | Device privileges |
-|---|---|---|---|---|
-| `tool-offline` | Read-only package; private scratch/output | No external traffic | Only its bounded capability channel | None |
-| `connector-readonly` | Same; no token/keyring mounts | Only its trusted connector endpoint | Only granted connector operations and optional artifact output | None |
-| `render-offline` | Immutable scene/assets; private output | No external traffic | Artifact input/output handles only | No control devices/GPU passthrough in initial profile |
-| `build-restricted` | Source read-only, private build scratch | Approved registry/mirror via enforced egress | No robot/connector/model credentials | None |
-| `trusted-device-service` | Explicit vendor config/runtime paths | Explicit vendor/control links | Admin-authorized device service | Minimal required device/SDK access; not a plugin sandbox |
+| Profile                  | Filesystem                                | Network                                      | Broker reachability                                            | Device privileges                                        |
+| ------------------------ | ----------------------------------------- | -------------------------------------------- | -------------------------------------------------------------- | -------------------------------------------------------- |
+| `tool-offline`           | Read-only package; private scratch/output | No external traffic                          | Only its bounded capability channel                            | None                                                     |
+| `connector-readonly`     | Same; no token/keyring mounts             | Only its trusted connector endpoint          | Only granted connector operations and optional artifact output | None                                                     |
+| `render-offline`         | Immutable scene/assets; private output    | No external traffic                          | Artifact input/output handles only                             | No control devices/GPU passthrough in initial profile    |
+| `build-restricted`       | Source read-only, private build scratch   | Approved registry/mirror via enforced egress | No robot/connector/model credentials                           | None                                                     |
+| `trusted-device-service` | Explicit vendor config/runtime paths      | Explicit vendor/control links                | Admin-authorized device service                                | Minimal required device/SDK access; not a plugin sandbox |
 
 Profiles must enforce distinct user/PID/mount/network contexts as applicable, read-only roots, no privilege escalation, minimal capabilities, appropriate syscall restrictions, and host-enforced CPU/memory/PID/storage/IO/output/time budgets. Engine prerequisites and controller delegation are verified by actual failure tests. Host management sockets, SSH/cloud credentials, `/proc` access to other trust domains, and unrelated application directories are not mounted.
 
+The initial T004 implementation selects offline tool/build/render profiles.
+Approved dependency downloads belong to the separate trusted fetch service; build
+scripts receive pinned content and no direct registry connection. This is the
+strict offline subset of `build-restricted`, not evidence for a network-enabled
+profile. Each actual image/profile tuple needs its own qualification. Render
+profile isolation does not establish browser/codec compatibility before T008.
+
 All child processes remain in the same sandbox/resource boundary. Killing only the parent shell is insufficient; cancellation cleans the task-owned process group/cgroup and verifies completion, without touching shared/vendor services.
+
+An independent trusted supervisor retains deadline and cleanup ownership if the
+manager exits. Service-private cleanup records cannot authorize new execution.
+After an owner crash, recovery verifies boot/process-start identity and exact
+container ownership before reclaiming only its abandoned resources; live peers and
+unknown records are preserved. A resource is not reported stopped until actual
+termination and the declared cleanup conditions are confirmed.
+
+A recorded numeric process-group ID alone cannot authorize termination: the
+number may have been reused. Recovery must preserve unknown outcomes when current
+ownership cannot be established. Likewise, a client timeout or killed CLI does
+not prove cancellation of a daemon request. Retain durable evidence and resource
+reservations until the relevant operation and cleanup are actually confirmed.
+
+For supervisor-created children, retain the actual child ownership for controlled
+termination. An asynchronous PID/start check followed by a numeric PID signal is
+not an atomic identity check. Do not reconstruct termination authority from a
+stored process number after the original child exits.
+
+API deadlines do not cancel filesystem mutations. Recovery retains exclusive
+ownership of already-started durable writes until they settle, even when the
+caller has received a bounded unknown result. Late completion cannot authorize
+another effect or release a reservation. A later explicit recovery must reconcile
+the actual durable result; neither a temporary missing file nor a timeout alone
+proves successful retirement.
+
+Losing supervision permanently invalidates that qualification. Its original
+bounded cleanup may still persist proven creation and exact removal facts;
+confirmed cleanup does not restore execution authority. Repeated successful
+cleanup is idempotent. Public recovery must also reconcile a recorded late
+retirement whose file has already been unlinked. Preserve the original failure
+alongside any independent cleanup failure through composed service calls.
 
 ## Network enforcement
 

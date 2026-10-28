@@ -48,9 +48,9 @@
             "T003"
           ],
           "id": "T004",
-          "status": "todo",
+          "status": "done",
           "title": "完整 SandboxBackend 与隔离资格",
-          "updated_at": "2026-10-23T06:14:12Z"
+          "updated_at": "2026-10-28T16:18:57Z"
         },
         "T005": {
           "depends_on": [
@@ -128,7 +128,7 @@
           "updated_at": "2026-10-23T06:14:14Z"
         }
       },
-      "updated_at": "2026-10-26T07:30:51Z",
+      "updated_at": "2026-10-28T16:18:57Z",
       "validation": {
         "at": null,
         "command": null,
@@ -149,7 +149,7 @@
       "product_context_ref": ".sdlc-v1/context/REQ-MVP-001.product.md",
       "status": "in_delivery",
       "title": "可移植机器人应用运行时的受限 MVP",
-      "updated_at": "2026-10-26T07:30:51Z"
+      "updated_at": "2026-10-28T16:18:57Z"
     }
   },
   "state_format": "sdlc-lightweight-state-v1",

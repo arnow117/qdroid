@@ -88,6 +88,17 @@ case "$1" in
         sleep 30
         exit 0
         ;;
+      output-limit-stall|output-limit-absent)
+        printf 'output-that-exceeds-the-limit'
+        sleep 30
+        exit 0
+        ;;
+      pipe-error-force-failure)
+        exec 0<&-
+        printf 'frame\\n'
+        sleep 30
+        exit 0
+        ;;
       observer-only)
         sleep 30
         exit 0
@@ -136,10 +147,17 @@ case "$1" in
     exit 0
     ;;
   inspect)
+    if [ "$QDROID_FAKE_DOCKER_MODE" = "pipe-error-force-failure" ]; then
+      printf 'true 0\\n'
+      exit 0
+    fi
     printf 'false 0\\n'
     exit 0
     ;;
   stop)
+    if [ -n "$QDROID_FAKE_DOCKER_LOG" ]; then
+      printf '%s\\n' "$*" >> "$QDROID_FAKE_DOCKER_LOG"
+    fi
     case "$QDROID_FAKE_DOCKER_MODE" in
       stop-failure|stop-failure-hang)
         exit 23
@@ -151,6 +169,16 @@ case "$1" in
     if [ -n "$QDROID_FAKE_DOCKER_LOG" ]; then
       printf '%s\\n' "$*" >> "$QDROID_FAKE_DOCKER_LOG"
     fi
+    case "$QDROID_FAKE_DOCKER_MODE" in
+      output-limit-absent)
+        printf '%s\\n' "Error response from daemon: No such container: $3" >&2
+        exit 1
+        ;;
+      output-limit-force-failure|pipe-error-force-failure)
+        printf '%s\\n' "Error response from daemon: unable to remove task-owned container" >&2
+        exit 23
+        ;;
+    esac
     exit 0
     ;;
 esac
@@ -199,23 +227,23 @@ exit 0
     );
 
     process.env.QDROID_FAKE_DOCKER_MODE = 'stop-failure';
-    await assert.rejects(
-      () => attach('stop-failure', () => undefined, 25, 1_024, false),
-      /could not be stopped/,
-    );
+    const deadlineForceRemoved = await attach('stop-failure', () => undefined, 25, 1_024, false);
+    assert.equal((deadlineForceRemoved as { cleanupConfirmed: boolean }).cleanupConfirmed, true);
 
     const cleanupLogPath = join(toolDirectory, 'cleanup.log');
     process.env.QDROID_FAKE_DOCKER_MODE = 'stop-failure-hang';
     process.env.QDROID_FAKE_DOCKER_LOG = cleanupLogPath;
-    await assert.rejects(
-      () =>
-        completesWithin(
-          stream('stop-failure-hang', [], () => undefined, 25, 1_024, false),
-          900,
-        ),
-      /could not be stopped/,
+    const stalledDeadlineForceRemoved = await completesWithin(
+      stream('stop-failure-hang', [], () => undefined, 25, 1_024, false),
+      900,
     );
-    assert.match(await readFile(cleanupLogPath, 'utf8'), /rm --force stop-failure-hang/);
+    assert.equal(
+      (stalledDeadlineForceRemoved as { cleanupConfirmed: boolean }).cleanupConfirmed,
+      true,
+    );
+    const stalledCleanupLog = await readFile(cleanupLogPath, 'utf8');
+    assert.match(stalledCleanupLog, /rm --force stop-failure-hang/);
+    assert.doesNotMatch(stalledCleanupLog, /stop --time 1 stop-failure-hang/);
 
     process.env.QDROID_FAKE_DOCKER_MODE = 'stop-success-hang';
     await completesWithin(
@@ -223,6 +251,56 @@ exit 0
       900,
     );
     assert.match(await readFile(cleanupLogPath, 'utf8'), /rm --force stop-success-hang/);
+
+    await writeFile(cleanupLogPath, '');
+    process.env.QDROID_FAKE_DOCKER_MODE = 'output-limit-stall';
+    const outputLimited = (await completesWithin(
+      stream('output-limit-stall', [], () => undefined, 1_000, 8, false),
+      900,
+    )) as { cleanupConfirmed: boolean; outputLimited: boolean; stopReason: string };
+    assert.equal(outputLimited.outputLimited, true);
+    assert.equal(outputLimited.stopReason, 'output-limit');
+    assert.equal(outputLimited.cleanupConfirmed, true);
+    const forceCleanupLog = await readFile(cleanupLogPath, 'utf8');
+    assert.match(forceCleanupLog, /rm --force output-limit-stall/);
+    assert.doesNotMatch(forceCleanupLog, /stop --time 1 output-limit-stall/);
+
+    await writeFile(cleanupLogPath, '');
+    process.env.QDROID_FAKE_DOCKER_MODE = 'output-limit-absent';
+    const absentAfterForceRemoval = (await completesWithin(
+      stream('output-limit-absent', [], () => undefined, 1_000, 8, false),
+      900,
+    )) as { cleanupConfirmed: boolean; outputLimited: boolean };
+    assert.equal(absentAfterForceRemoval.outputLimited, true);
+    assert.equal(absentAfterForceRemoval.cleanupConfirmed, true);
+    const absenceLog = await readFile(cleanupLogPath, 'utf8');
+    assert.match(absenceLog, /rm --force output-limit-absent/);
+    assert.doesNotMatch(absenceLog, /stop --time 1 output-limit-absent/);
+
+    await writeFile(cleanupLogPath, '');
+    process.env.QDROID_FAKE_DOCKER_MODE = 'pipe-error-force-failure';
+    await assert.rejects(
+      () =>
+        completesWithin(
+          stream(
+            'pipe-error-force-failure',
+            [],
+            (_chunk, stdin) => stdin.write('reply\\n'),
+            1_000,
+            1_024,
+            false,
+          ),
+          900,
+        ),
+      (error: unknown) => {
+        assert.ok(error instanceof AggregateError);
+        assert.match(error.message, /cleanup is unconfirmed/);
+        const messages = collectErrorMessages(error);
+        assert.ok(messages.some((message) => /EPIPE/.test(message)));
+        assert.ok(messages.some((message) => /could not be removed/.test(message)));
+        return true;
+      },
+    );
 
     const observerCountPath = join(toolDirectory, 'observer-count');
     const observerLogPath = join(toolDirectory, 'observer.log');
@@ -347,4 +425,12 @@ async function completesWithin<T>(promise: Promise<T>, timeoutMs: number): Promi
       clearTimeout(timeout);
     }
   }
+}
+
+function collectErrorMessages(error: unknown): readonly string[] {
+  if (error instanceof AggregateError) {
+    return error.errors.flatMap((member) => collectErrorMessages(member));
+  }
+
+  return error instanceof Error ? [error.message] : [];
 }

@@ -131,6 +131,97 @@ export interface CounterCapabilityProvider {
   observe(admissionId: string, providerEpoch: number): CounterProviderObservation;
 }
 
+/**
+ * Trusted-only sandbox contracts. Workload transports deliberately do not expose
+ * these methods: a package cannot select a profile, image, or host runtime.
+ */
+export type SandboxProfileId = 'build-restricted' | 'render-offline' | 'tool-offline';
+
+export interface SandboxIdentityBinding {
+  bootId: string;
+  channelId: string;
+  epoch: number;
+  installationId: string;
+  instanceId: string;
+}
+
+export interface SandboxLimits {
+  cpu: number;
+  deadlineMs: number;
+  guestNproc: number;
+  hostPids: number;
+  ioBytesPerSecond: number;
+  maxInputBytes: number;
+  maxOutputBytes: number;
+  memoryMiB: number;
+  scratchMiB: number;
+  sharedMemoryMiB: number;
+}
+
+export interface SandboxExecutionRequest {
+  argv: readonly string[];
+  cwd: string;
+  environment: Readonly<Record<string, string>>;
+  executable: string;
+}
+
+export type SandboxStopReason =
+  | 'completed'
+  | 'deadline'
+  | 'guardian-lost'
+  | 'output-limit'
+  | 'stopped';
+
+export interface SandboxExecutionCompletion {
+  cleanupConfirmed: boolean;
+  exitCode: number | null;
+  reason: SandboxStopReason;
+  stderrBytes: number;
+  /** Bytes forwarded to the trusted stderr stream before the aggregate limit. */
+  stderrDeliveredBytes: number;
+  stdoutBytes: number;
+  /** Bytes forwarded to the trusted stdout stream before the aggregate limit. */
+  stdoutDeliveredBytes: number;
+}
+
+export interface SandboxExecutionHandle {
+  closeInput(): Promise<void>;
+  completion: Promise<SandboxExecutionCompletion>;
+  stderr: AsyncIterable<Uint8Array>;
+  stdout: AsyncIterable<Uint8Array>;
+  writeInput(chunk: Uint8Array): Promise<void>;
+}
+
+/** Trusted cleanup result for a sandbox lifecycle operation. */
+export interface SandboxCleanupEvidence {
+  cleanupConfirmed: boolean;
+  status: 'confirmed' | 'pending' | 'unknown';
+}
+
+export interface SandboxQualification {
+  readonly fingerprint: string;
+  readonly imageId: string;
+  readonly profileDigest: string;
+  readonly profileId: SandboxProfileId;
+}
+
+export interface SandboxInstance {
+  readonly id: string;
+}
+
+export interface SandboxBackend {
+  create(
+    qualification: SandboxQualification,
+    identity: SandboxIdentityBinding,
+  ): Promise<SandboxInstance>;
+  execute(
+    sandbox: SandboxInstance,
+    request: SandboxExecutionRequest,
+  ): Promise<SandboxExecutionHandle>;
+  qualify(profileId: SandboxProfileId): Promise<SandboxQualification>;
+  stop(sandbox: SandboxInstance): Promise<SandboxCleanupEvidence>;
+}
+
 export function parseJsonRpcRequest(value: unknown): JsonRpcRequest {
   const record = requireRecord(value);
   requireExactKeys(

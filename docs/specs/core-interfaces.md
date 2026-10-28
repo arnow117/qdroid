@@ -12,17 +12,17 @@ Messages contain a bounded request ID. Tasks, artifacts, grants, providers and i
 
 ## Public plugin methods
 
-| Method | Input | Result | Authority |
-|---|---|---|---|
-| `runtime.initialize` | Compatible protocol versions, package content identity | Bound instance, negotiated features/limits | Package identity must match supervisor's installation record |
-| `capabilities.list` | Optional typed filter | Available descriptors allowed for this subject | No discovery of unrelated private resources |
-| `capabilities.invoke` | Capability/schema, arguments, optional idempotency key | TaskHandle or validated immediate result | Current grants, provider and sandbox checks |
-| `tasks.get` | Task ID | State, permitted evidence and result | Owner or explicit observer grant |
-| `tasks.cancel` | Task ID, reason | Cancellation request state | Owner/authorized controller; not proof of stop |
-| `events.subscribe` | Permitted topic/filter and cursor | Bounded subscription | Subject/resource-scoped, no arbitrary bus access |
-| `artifacts.put` | Permitted format/size and input bytes/stream | ArtifactRef | Private quota and ownership |
-| `artifacts.get` | Artifact ID and optional range | Permitted metadata/content | Ownership or explicit read grant |
-| `display.present` | SceneRef, state, revision, presentation policy | Presentation TaskHandle | Display lease and format compatibility |
+| Method                | Input                                                  | Result                                         | Authority                                                    |
+| --------------------- | ------------------------------------------------------ | ---------------------------------------------- | ------------------------------------------------------------ |
+| `runtime.initialize`  | Compatible protocol versions, package content identity | Bound instance, negotiated features/limits     | Package identity must match supervisor's installation record |
+| `capabilities.list`   | Optional typed filter                                  | Available descriptors allowed for this subject | No discovery of unrelated private resources                  |
+| `capabilities.invoke` | Capability/schema, arguments, optional idempotency key | TaskHandle or validated immediate result       | Current grants, provider and sandbox checks                  |
+| `tasks.get`           | Task ID                                                | State, permitted evidence and result           | Owner or explicit observer grant                             |
+| `tasks.cancel`        | Task ID, reason                                        | Cancellation request state                     | Owner/authorized controller; not proof of stop               |
+| `events.subscribe`    | Permitted topic/filter and cursor                      | Bounded subscription                           | Subject/resource-scoped, no arbitrary bus access             |
+| `artifacts.put`       | Permitted format/size and input bytes/stream           | ArtifactRef                                    | Private quota and ownership                                  |
+| `artifacts.get`       | Artifact ID and optional range                         | Permitted metadata/content                     | Ownership or explicit read grant                             |
+| `display.present`     | SceneRef, state, revision, presentation policy         | Presentation TaskHandle                        | Display lease and format compatibility                       |
 
 There is no public `grant.create`, `approval.confirm`, `container.exec-on-host`, arbitrary network proxy, raw SDK RPC, or direct secret retrieval. Administrative APIs use a separate authenticated endpoint and cannot be reached as workload tools.
 
@@ -35,7 +35,7 @@ Example invocation:
   "method": "capabilities.invoke",
   "params": {
     "capability": "speech.speak/v1",
-    "arguments": {"text": "Your next meeting starts at ten.", "locale": "en-US"},
+    "arguments": { "text": "Your next meeting starts at ten.", "locale": "en-US" },
     "idempotencyKey": "utterance-42"
   }
 }
@@ -104,13 +104,13 @@ Only trusted routing services construct `AuthorizedInvocation`; applications nev
 
 This port is reachable only from authenticated trusted services. Operator administration has a separate authenticated endpoint; no method below becomes a public workload tool by appearing in a tool catalog.
 
-| Operation | Trusted input and output | Required behavior |
-|---|---|---|
-| `evaluate` | Bound subject, normalized operation/resources/input digest, provider/profile identity → allow/deny precheck with policy generation | Advisory precheck only; does not issue execution authority or reserve a use |
-| `commitDispatch` | Authenticated execution-broker identity, bound intent/task, exact request digest, grant/provider/instance generations, live local lease → admitted/existing/denied and internal admission record | One durable transaction checks cancellation/current authority and consumes budgets/approval with dispatch intent; an existing idempotent admission never issues a fresh unconstrained dispatch |
-| `requestCancellation` | Bound authorized controller/task → ordered cancellation marker and admission status | Uses the same admission owner as commit; queued cancellation wins only if committed first |
-| `lookupAdmission` | Authenticated broker/task owner scope and admission identity → permitted durable evidence | Recovery query; does not issue permission to repeat a side effect |
-| `revoke` | Separately authenticated operator/system revocation rule → new policy generation | Workloads cannot invoke it as an issuer or restore an old generation |
+| Operation             | Trusted input and output                                                                                                                                                                         | Required behavior                                                                                                                                                                              |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `evaluate`            | Bound subject, normalized operation/resources/input digest, provider/profile identity → allow/deny precheck with policy generation                                                               | Advisory precheck only; does not issue execution authority or reserve a use                                                                                                                    |
+| `commitDispatch`      | Authenticated execution-broker identity, bound intent/task, exact request digest, grant/provider/instance generations, live local lease → admitted/existing/denied and internal admission record | One durable transaction checks cancellation/current authority and consumes budgets/approval with dispatch intent; an existing idempotent admission never issues a fresh unconstrained dispatch |
+| `requestCancellation` | Bound authorized controller/task → ordered cancellation marker and admission status                                                                                                              | Uses the same admission owner as commit; queued cancellation wins only if committed first                                                                                                      |
+| `lookupAdmission`     | Authenticated broker/task owner scope and admission identity → permitted durable evidence                                                                                                        | Recovery query; does not issue permission to repeat a side effect                                                                                                                              |
+| `revoke`              | Separately authenticated operator/system revocation rule → new policy generation                                                                                                                 | Workloads cannot invoke it as an issuer or restore an old generation                                                                                                                           |
 
 `BoundDispatchIntent` binds installation/workload/task identity, resolved operation/resource scope, canonical input/schema digest, provider epoch, required isolation and deduplication scope. Values are derived/validated by trusted services; accepting a field with the same name from a plugin is not binding it. Caller-supplied idempotency keys remain untrusted identifiers.
 
@@ -129,16 +129,16 @@ created → authorizing → queued → dispatched → running
 
 Queued cancellation and first dispatch compete through the same trusted admission ledger. If cancellation commits before `commitDispatch`, no execution ticket can be issued and the task becomes canceled without a provider side effect. If dispatch commits first, cancellation is recorded/requested and the provider's actual evidence decides the result. qdroidd must not decide this race from an independently cached Task projection.
 
-| Field | Contract |
-|---|---|
-| `taskId`, `parentTaskId` | Host-generated; scoped visibility |
-| `subjectBinding` | Trusted installation/instance/task association, not public caller-selected identity |
-| `capability`, `provider`, `schemaVersion` | Exact resolved versions; no mid-task provider switch |
-| `state`, `stateVersion` | Monotonic state version; compare-and-set/journal rules reject stale transitions |
-| `dispatchRecord` | Durable request digest, authorization generation, provider epoch and send intent |
-| `cancelRequested` | Request time/reason and actual cancellation guarantee |
-| `evidence` | Observed result, source/sequence, observation time, confidence category |
-| `outcome` | Typed result or structured error; unknown reason where applicable |
+| Field                                     | Contract                                                                            |
+| ----------------------------------------- | ----------------------------------------------------------------------------------- |
+| `taskId`, `parentTaskId`                  | Host-generated; scoped visibility                                                   |
+| `subjectBinding`                          | Trusted installation/instance/task association, not public caller-selected identity |
+| `capability`, `provider`, `schemaVersion` | Exact resolved versions; no mid-task provider switch                                |
+| `state`, `stateVersion`                   | Monotonic state version; compare-and-set/journal rules reject stale transitions     |
+| `dispatchRecord`                          | Durable request digest, authorization generation, provider epoch and send intent    |
+| `cancelRequested`                         | Request time/reason and actual cancellation guarantee                               |
+| `evidence`                                | Observed result, source/sequence, observation time, confidence category             |
+| `outcome`                                 | Typed result or structured error; unknown reason where applicable                   |
 
 Journal intent before side effects. PolicyAuthority transactionally owns dispatch admission, cancellation markers, Grant budget and approval use; core task progress and provider execution records refer to the same admission ID. The single-host initial store is local SQLite with durability/transaction settings qualified by crash tests. It is not an atomic transaction with an external vendor/API call.
 
@@ -150,18 +150,18 @@ A versioned deduplication namespace and key identify one durable operation. Its 
 
 Use JSON-RPC protocol errors for invalid framing/method/params. Domain errors carry stable `data.code`, non-sensitive `message`, task ID if created, and a recovery classification.
 
-| Code | Meaning | Default recovery |
-|---|---|---|
-| `QD_PERMISSION_DENIED` | No matching current grant, or explicit deny | No automatic approval/retry |
-| `QD_UNSUPPORTED_CAPABILITY` | Required semantic capability unavailable | Explicit application fallback or reject |
-| `QD_INCOMPATIBLE_VERSION` | Protocol/schema/package mismatch | Install compatible version |
-| `QD_RUNTIME_NOT_QUALIFIED` | Required isolation property unavailable/unproven | Refuse execution |
-| `QD_RESOURCE_LIMIT` | Quota/concurrency/size/time constraint | Bounded application recovery |
-| `QD_STALE_CONTEXT` | Old boot/instance/provider epoch, expired lease | Re-establish context; never replay old side effect |
-| `QD_IDEMPOTENCY_CONFLICT` | Same key with different effect | Reject and inspect |
-| `QD_OUTCOME_UNKNOWN` | Dispatch may have taken effect | Reconcile or request a recovery decision |
-| `QD_PROVIDER_UNAVAILABLE` | Provider not ready/disconnected | Retry only when absence of prior side effect is known |
-| `QD_VALIDATION_FAILED` | Schema/resource/format constraints invalid | Correct input; no side effect |
+| Code                        | Meaning                                          | Default recovery                                      |
+| --------------------------- | ------------------------------------------------ | ----------------------------------------------------- |
+| `QD_PERMISSION_DENIED`      | No matching current grant, or explicit deny      | No automatic approval/retry                           |
+| `QD_UNSUPPORTED_CAPABILITY` | Required semantic capability unavailable         | Explicit application fallback or reject               |
+| `QD_INCOMPATIBLE_VERSION`   | Protocol/schema/package mismatch                 | Install compatible version                            |
+| `QD_RUNTIME_NOT_QUALIFIED`  | Required isolation property unavailable/unproven | Refuse execution                                      |
+| `QD_RESOURCE_LIMIT`         | Quota/concurrency/size/time constraint           | Bounded application recovery                          |
+| `QD_STALE_CONTEXT`          | Old boot/instance/provider epoch, expired lease  | Re-establish context; never replay old side effect    |
+| `QD_IDEMPOTENCY_CONFLICT`   | Same key with different effect                   | Reject and inspect                                    |
+| `QD_OUTCOME_UNKNOWN`        | Dispatch may have taken effect                   | Reconcile or request a recovery decision              |
+| `QD_PROVIDER_UNAVAILABLE`   | Provider not ready/disconnected                  | Retry only when absence of prior side effect is known |
+| `QD_VALIDATION_FAILED`      | Schema/resource/format constraints invalid       | Correct input; no side effect                         |
 
 Do not expose broker tokens, raw credential-bearing upstream requests, private files or full provider environments in error messages.
 
@@ -175,13 +175,13 @@ Timestamps from different nodes are not automatically comparable. Input expiry i
 
 All IDs below are proposed qdroid schemas, not vendor APIs.
 
-| Capability | Required semantic contract |
-|---|---|
-| `speech.speak/v1` | Text/locale validation, utterance identity, supported interruption, accepted-versus-played evidence |
-| `vision.capture/v1` | Camera descriptor, orientation/frame metadata, bounded output ArtifactRef, privacy/resource grant |
-| `input.touch/v1` | Supported physical locations/events, duplicate/gap behavior, observed source |
-| `motion.action/v1` | Installed semantic action catalog, vendor mapping, form/state preconditions, limits and resource lock |
-| `motion.twist/v1` | Explicit supported axes; meters/second and radians/second; named coordinate frame; local finite lease; stop/timeout behavior |
+| Capability          | Required semantic contract                                                                                                   |
+| ------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| `speech.speak/v1`   | Text/locale validation, utterance identity, supported interruption, accepted-versus-played evidence                          |
+| `vision.capture/v1` | Camera descriptor, orientation/frame metadata, bounded output ArtifactRef, privacy/resource grant                            |
+| `input.touch/v1`    | Supported physical locations/events, duplicate/gap behavior, observed source                                                 |
+| `motion.action/v1`  | Installed semantic action catalog, vendor mapping, form/state preconditions, limits and resource lock                        |
+| `motion.twist/v1`   | Explicit supported axes; meters/second and radians/second; named coordinate frame; local finite lease; stop/timeout behavior |
 
 For motion, a coordinate frame includes axis orientation and reference link; adapter conversion is explicit and tested. Unsupported axes are rejected instead of silently dropped. No generic `navigate_to` is synthesized from velocity unless a separately qualified navigation provider implements its goal/result/cancel semantics. Physical movement is not required to complete the first software MVP.
 
@@ -216,7 +216,43 @@ Only SandboxManager calls these methods. Public plugin input cannot choose arbit
 
 Exec specifies a fixed executable/argument vector, working directory handle, minimal environment, input/output limits and deadline. Never interpolate it into a host shell. If a Skill intentionally runs a shell, that shell and all descendants run inside the assigned sandbox with identical limits. Cleanup covers descendants and verifies task-owned resources only.
 
-Qualification evidence is keyed by host kernel/runtime/image/profile/test-suite versions and actual settings. Changed inputs invalidate the relevant evidence. Do not report qualification from feature detection alone.
+Stop fences an owned handle synchronously before waiting for startup or cleanup.
+An execute still awaiting qualification or intent persistence must observe that
+fence before creating or starting its workload. A stopped handle cannot start a
+new execution; a new session needs a new handle. Foreign handles are rejected,
+while a stale owned handle retains only its identified cleanup authority.
+
+The first offline contract returns `SandboxCleanupEvidence` with `status` equal
+to `confirmed`, `pending` or `unknown`, and a consistent `cleanupConfirmed`
+boolean. A successful function return alone is not confirmation. Pending or
+unknown cleanup retains ownership records and resource reservations. Recovery
+likewise reports unresolved records rather than silently treating preserved
+live, malformed or unverifiable records as completed cleanup.
+
+The trusted ExecHandle becomes available after startup, with live bounded byte
+streams for stdout/stderr, asynchronous backpressured input writes, explicit input
+EOF, and an independent completion result. Completion-only output cannot serve the
+multi-round stdio MCP or binary Artifact transport. Queue, chunk and cumulative
+limits apply independently of framing; EOF, write failure, cancellation, process
+exit and confirmed resource cleanup are distinct facts. Workload bytes never become
+sandbox-management messages.
+
+Manager failure must not remove the execution deadline. A separate trusted
+supervisor owns the actual process/container lifetime. Cleanup recovery uses
+service-owned, versioned resource records and exact ownership checks after the old
+owner has exited; it never recreates execution or qualification authority. Active
+peers cannot be reclaimed merely because a new manager was constructed. Malformed
+or unsupported recovery records fail closed and remain available for diagnosis.
+
+Recovery commands also require durable ownership before they may change a
+resource. A released recovery lock does not prove that a prior cleanup process
+or its privileged descendants have exited. Retire a record only after the
+relevant writers have actually exited and precise cleanup is confirmed;
+uncertain commands and temporary absence do not satisfy that condition. Loss of
+a required qualification supervisor remains a qualification failure even if a
+subsequent cleanup-only takeover succeeds.
+
+Qualification evidence is keyed by host kernel/runtime/image/profile/test-suite versions and actual settings. Compare the complete tuple before and after the probes; a changed tuple cannot receive evidence collected under the previous configuration. Changed inputs invalidate the relevant evidence. Do not report qualification from feature detection alone. Probe failures and uncertain container creation still require bounded cleanup of precisely owned resources; waiting for an attached process cannot prevent that cleanup from starting.
 
 ## AgentBackend and connector boundaries
 

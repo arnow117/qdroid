@@ -1,6 +1,8 @@
 import { randomUUID } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 
+export * from './guardian.js';
+
 import {
   ContractError,
   toJsonRpcFailure,

@@ -7,6 +7,8 @@ import { createServer, connect, type Server } from 'node:net';
 import { createSocket, type Socket as DatagramSocket } from 'node:dgram';
 import { join } from 'node:path';
 
+export * from './backend.js';
+
 import type { JsonRpcResponse } from '../../contracts/src/index.js';
 import {
   BoundedStdioSession,
@@ -22,7 +24,7 @@ export const T002_NODE_IMAGE =
 export const T002_RUNSC_SHA256 = 'c771292129c7ff96e83c5074485e3d33cfc938652dc70682bb792a66842d4de2';
 export const T002_RUNSC_SENTRY_SHA256 =
   '79f406de247333489ad3e1bdc5c936ede9bbe1eb1b36a315b601bc782c56aa16';
-export const T002_QUALIFICATION_SUITE_VERSION = 'qdroid.t002.qualifier/v1';
+export const T002_QUALIFICATION_SUITE_VERSION = 'qdroid.t002.qualifier/v2';
 
 const MAX_STDIO_FRAME_BYTES = 8_192;
 const MAX_WORKLOAD_OUTPUT_BYTES = 65_536;
@@ -40,6 +42,29 @@ const IO_QUALIFICATION_ROOT = '/mnt/lima-colima-qdroid-t002/qdroid-t002-io';
 const IO_QUALIFICATION_CONTAINER_PATH = '/opt/qdroid/io-probe.bin';
 const IO_QUALIFICATION_FILE_BYTES = 16 * 1024 * 1024;
 const MIN_IO_PROBE_DURATION_MS = 12_000;
+const CPU_PROBE_DEADLINE_MS = 10_000;
+const CPU_PROBE_MAX_RATIO = 0.8;
+const CPU_PROBE_QUOTA_MICROS = 50_000;
+const CPU_PROBE_PERIOD_MICROS = 100_000;
+const CPU_PROBE_SOURCE = [
+  'let phase = "ready";',
+  'process.stdout.write("ready\\n");',
+  'process.stdin.on("data", (chunk) => {',
+  '  const command = chunk.toString("utf8").trim();',
+  '  if (command === "start" && phase === "ready") {',
+  '    phase = "computing";',
+  '    const startedAt = process.hrtime.bigint();',
+  '    const startedCpu = process.cpuUsage();',
+  '    while (process.hrtime.bigint() - startedAt < 2_000_000_000n) { Math.sqrt(Math.random()); }',
+  '    const usedCpu = process.cpuUsage(startedCpu);',
+  '    const elapsedMs = Number(process.hrtime.bigint() - startedAt) / 1_000_000;',
+  '    process.stdout.write(JSON.stringify({ cpuToWallRatio: (usedCpu.user + usedCpu.system) / 1_000 / elapsedMs }) + "\\n");',
+  '    phase = "complete";',
+  '    return;',
+  '  }',
+  '  if (command === "cancel" || (command === "release" && phase === "complete")) { process.exit(0); }',
+  '});',
+].join('\n');
 const GVISOR_COMPONENT_PATHS = [
   '/usr/local/bin/containerd-shim-runsc-v1',
   '/usr/local/bin/gvisor-bin/gvisor_sentry',
@@ -178,6 +203,9 @@ export interface QualificationProbes {
   };
   cpu: {
     cpuToWallRatio: number;
+    hostCpuToWallRatio: number;
+    hostUsageMicros: number;
+    observedThrottledPeriods: number;
   };
 }
 
@@ -230,6 +258,24 @@ interface DockerRuntimeInfo {
   runtimeArgs: string[];
 }
 
+export interface CpuStatSnapshot {
+  nrPeriods: number;
+  nrThrottled: number;
+  usageMicros: number;
+}
+
+export interface CpuProbeAssessment {
+  hostCpuToWallRatio: number;
+  hostUsageMicros: number;
+  observedThrottledPeriods: number;
+}
+
+interface CpuProbeIdentity {
+  cgroupPath: string;
+  pid: number;
+  processStart: string;
+}
+
 interface FingerprintFacts {
   dockerVersion: string;
   host: QualificationHostFacts;
@@ -254,7 +300,7 @@ interface QualificationReadOnlyMount {
   targetPath: string;
 }
 
-interface QualificationIoFile extends QualificationReadOnlyMount {
+export interface QualificationIoMount extends QualificationReadOnlyMount {
   dispose(): Promise<void>;
 }
 
@@ -305,6 +351,23 @@ export class DockerSandboxManager {
 
     this.liveSandboxes.set(handle, qualification.fingerprint);
     return handle;
+  }
+
+  /**
+   * Revalidates an opaque qualification without creating a sandbox or running
+   * workload code. Higher-level trusted backends use this before they reuse
+   * the shared runtime evidence for another profile tuple.
+   */
+  public async assertQualificationCurrent(qualification: QualificationEvidence): Promise<void> {
+    await this.assertQualified(qualification);
+  }
+
+  /**
+   * Creates the fixed, broker-owned synthetic read target used only by trusted
+   * qualification probes. Workload-facing APIs never receive this host path.
+   */
+  public async createTrustedQualificationIoMount(): Promise<QualificationIoMount> {
+    return this.createQualificationIoFile();
   }
 
   public async runWorkload(
@@ -616,7 +679,12 @@ export class DockerSandboxManager {
   private async removeContainer(name: string): Promise<void> {
     const removed = await runDocker(['rm', '--force', name]);
 
-    if (removed.exitCode !== 0) {
+    if (removed.exitCode === 0 || isConfirmedContainerAbsence(removed, name)) {
+      return;
+    }
+
+    const inspected = await runDocker(['inspect', name]);
+    if (!isConfirmedContainerAbsence(inspected, name)) {
       throw new Error('The fixed-profile container could not be removed.');
     }
   }
@@ -686,14 +754,14 @@ export class DockerSandboxManager {
       const scratchFirst = await this.runJsonProbe('scratch-write', ['isolation-marker'], image);
       const scratchSecond = await this.runJsonProbe('scratch-read', ['isolation-marker'], image);
       const network = await this.runNetworkProbe(image);
-      const cpu = await this.runJsonProbe('cpu', [], image);
+      const cpu = await this.runHostMeasuredCpuProbe(image);
       const pids = await this.runJsonProbe('pids', [], image);
       const scratch = await this.runJsonProbe('scratch-enospc', [], image);
       const memory = await this.runMemoryProbe(image);
       const outputLimit = await this.runOutputLimitProbe(image);
       const descendantCleanup = await this.runDescendantCleanupProbe(image);
       const io = await this.runIoProbe(image);
-      const cpuToWallRatio = readNumber(cpu, 'cpuToWallRatio');
+      const cpuToWallRatio = cpu.cpuToWallRatio;
       const dockerSocketStatus = readString(filesystem, 'dockerSocketStatus');
       const dockerSocketUnreadable = isDockerSocketUnavailable(dockerSocketStatus);
       const pidsForkDenied = readBoolean(pids, 'forkDenied');
@@ -717,7 +785,9 @@ export class DockerSandboxManager {
         readBoolean(scratchSecond, 'present') !== false ||
         network.controlTargetReachable !== true ||
         network.controlTargetReceivedPackets !== 0 ||
-        cpuToWallRatio > 0.8 ||
+        cpu.hostCpuToWallRatio > CPU_PROBE_MAX_RATIO ||
+        cpu.hostUsageMicros <= 0 ||
+        cpu.observedThrottledPeriods <= 0 ||
         pidsForkDenied !== true ||
         scratchEnospc !== true ||
         memory.oomKilled !== true ||
@@ -734,6 +804,9 @@ export class DockerSandboxManager {
           canaryUnreadable: readBoolean(filesystem, 'canaryUnreadable'),
           canaryWriteAttempted: readBoolean(filesystem, 'canaryWriteAttempted'),
           cpuToWallRatio,
+          hostCpuToWallRatio: cpu.hostCpuToWallRatio,
+          hostUsageMicros: cpu.hostUsageMicros,
+          observedThrottledPeriods: cpu.observedThrottledPeriods,
           descendantCleanupConfirmed: descendantCleanup.confirmed,
           descendantObservation: descendantCleanup.observation,
           descendantsObserved: descendantCleanup.descendantsObserved,
@@ -771,9 +844,7 @@ export class DockerSandboxManager {
       }
 
       return {
-        cpu: {
-          cpuToWallRatio,
-        },
+        cpu,
         deadline: {
           enforced: descendantCleanup.stopReason === 'deadline',
         },
@@ -812,6 +883,108 @@ export class DockerSandboxManager {
         rm(secretPath, { force: true }),
         rm(storePath, { force: true }),
       ]);
+    }
+  }
+
+  private async runHostMeasuredCpuProbe(image: string): Promise<QualificationProbes['cpu']> {
+    const name = `cpu-${randomUUID()}`;
+    let output = '';
+    let stdin: NodeJS.WritableStream | undefined;
+    let resolveReady: (() => void) | undefined;
+    let rejectReady: ((error: Error) => void) | undefined;
+    let resolveResult: ((result: Record<string, ProbeValue>) => void) | undefined;
+    let rejectResult: ((error: Error) => void) | undefined;
+    const ready = new Promise<void>((resolve, reject) => {
+      resolveReady = resolve;
+      rejectReady = reject;
+    });
+    const result = new Promise<Record<string, ProbeValue>>((resolve, reject) => {
+      resolveResult = resolve;
+      rejectResult = reject;
+    });
+
+    const running = this.runStreamingContainer(
+      name,
+      ['-e', CPU_PROBE_SOURCE],
+      (chunk, input) => {
+        stdin = input;
+        output += chunk.toString('utf8');
+        const lines = output.split('\n');
+        output = lines.pop() ?? '';
+
+        for (const line of lines) {
+          if (line === 'ready') {
+            resolveReady?.();
+            continue;
+          }
+
+          try {
+            const parsed = JSON.parse(line) as unknown;
+            if (!isRecord(parsed)) {
+              throw new Error('The CPU probe did not return a JSON object.');
+            }
+            resolveResult?.(parsed as Record<string, ProbeValue>);
+          } catch (error) {
+            rejectResult?.(
+              error instanceof Error ? error : new Error('The CPU probe returned invalid JSON.'),
+            );
+          }
+        }
+      },
+      CPU_PROBE_DEADLINE_MS,
+      MAX_STDIO_FRAME_BYTES,
+      false,
+      { entrypoint: '/usr/local/bin/node' },
+      image,
+    );
+
+    try {
+      await withinCpuProbeDeadline(
+        ready,
+        'The CPU probe did not become ready before its deadline.',
+      );
+      const beforeIdentity = await readLiveCpuProbeIdentity(name);
+      const before = await readCpuStatSnapshot(beforeIdentity.cgroupPath);
+      const cpuMaximum = await readFile(
+        join('/sys/fs/cgroup', beforeIdentity.cgroupPath, 'cpu.max'),
+        'utf8',
+      );
+      const startedAt = process.hrtime.bigint();
+      await writeTrustedProbeInput(stdin, 'start\n');
+      const guestResult = await withinCpuProbeDeadline(
+        result,
+        'The CPU probe did not produce a computation result before its deadline.',
+      );
+      const elapsedNanoseconds = process.hrtime.bigint() - startedAt;
+      const afterIdentity = await readLiveCpuProbeIdentity(name);
+      const after = await readCpuStatSnapshot(afterIdentity.cgroupPath);
+      assertSameCpuProbeIdentity(beforeIdentity, afterIdentity);
+      const assessment = assessCpuProbe({
+        after,
+        before,
+        cpuMaximum,
+        elapsedNanoseconds,
+      });
+      const cpuToWallRatio = readNumber(guestResult, 'cpuToWallRatio');
+      await writeTrustedProbeInput(stdin, 'release\n');
+      const completed = await running;
+
+      if (completed.stopReason !== 'completed' || completed.exitCode !== 0) {
+        throw new Error('The CPU probe did not complete successfully.');
+      }
+
+      return {
+        cpuToWallRatio,
+        ...assessment,
+      };
+    } catch (error) {
+      const failure = error instanceof Error ? error : new Error('The CPU probe failed.');
+      rejectReady?.(failure);
+      rejectResult?.(failure);
+      await writeTrustedProbeInput(stdin, 'cancel\n').catch(() => undefined);
+      throw failure;
+    } finally {
+      await running.catch(() => undefined);
     }
   }
 
@@ -911,7 +1084,7 @@ export class DockerSandboxManager {
     }
   }
 
-  private async createQualificationIoFile(): Promise<QualificationIoFile> {
+  private async createQualificationIoFile(): Promise<QualificationIoMount> {
     const root = await this.verifyQualificationIoRoot();
     const sourcePath = join(root, `io-${randomUUID()}.bin`);
     const file = await open(sourcePath, 'wx', 0o644);
@@ -1347,8 +1520,8 @@ export class DockerSandboxManager {
       'The fixed-profile workload container could not be created.',
     );
 
+    let primaryFailure: Error | undefined;
     let result: RunningProcessResult | undefined;
-
     try {
       if (options.qualificationReadOnlyMount !== undefined) {
         await this.verifyQualificationReadOnlyMount(name, options.qualificationReadOnlyMount);
@@ -1361,16 +1534,32 @@ export class DockerSandboxManager {
         maxOutputBytes,
         observeDescendants,
       );
-    } finally {
-      const removed = await runDocker(['rm', '--force', name]);
+    } catch (error) {
+      primaryFailure = toError(error, 'The fixed-profile workload failed.');
+    }
 
-      if (removed.exitCode !== 0) {
-        if (result === undefined) {
-          throw new Error('The fixed-profile workload container could not be removed.');
-        }
+    let cleanupFailure: Error | undefined;
+    try {
+      await this.removeContainer(name);
+    } catch (error) {
+      cleanupFailure = toError(error, 'The fixed-profile workload container could not be removed.');
+    }
 
-        result.cleanupConfirmed = false;
+    if (primaryFailure !== undefined && cleanupFailure !== undefined) {
+      throw new AggregateError(
+        [primaryFailure, cleanupFailure],
+        'The fixed-profile workload failed and its cleanup is unconfirmed.',
+      );
+    }
+    if (primaryFailure !== undefined) {
+      throw primaryFailure;
+    }
+    if (cleanupFailure !== undefined) {
+      if (result === undefined) {
+        throw cleanupFailure;
       }
+
+      result.cleanupConfirmed = false;
     }
 
     if (result === undefined) {
@@ -1426,6 +1615,7 @@ export class DockerSandboxManager {
     let stopPromise: Promise<void> | undefined;
     let notifyStopCompletion: ((stop: Promise<void>) => void) | undefined;
     let callbackFailure: unknown;
+    let forceRemovalConfirmed = false;
     const attached = spawn('docker', ['start', '--attach', '--interactive', name], {
       detached: process.platform !== 'win32',
       stdio: ['pipe', 'pipe', 'pipe'],
@@ -1470,16 +1660,38 @@ export class DockerSandboxManager {
         let stopFailure: Error | undefined;
 
         try {
-          const stopped = await runDocker(['stop', '--time', '1', name]);
+          if (reason === 'deadline' || reason === 'output-limit') {
+            await this.removeContainer(name);
+            forceRemovalConfirmed = true;
+          } else {
+            const stopped = await runDocker(['stop', '--time', '1', name]);
 
-          if (stopped.exitCode !== 0) {
-            stopFailure = new Error('The fixed-profile workload container could not be stopped.');
+            if (stopped.exitCode !== 0) {
+              stopFailure = new Error('The fixed-profile workload container could not be stopped.');
+            }
           }
         } catch (error) {
-          stopFailure = error instanceof Error ? error : new Error('Docker stop did not complete.');
+          stopFailure = toError(
+            error,
+            'The fixed-profile workload container could not be force-removed.',
+          );
         } finally {
           terminateAttachedProcess();
-          await waitForProcessCloseWithin(processClosed, ATTACH_TERMINATION_GRACE_MS);
+          try {
+            await waitForProcessCloseWithin(processClosed, ATTACH_TERMINATION_GRACE_MS);
+          } catch (error) {
+            const attachFailure = toError(
+              error,
+              'The Docker attach process did not terminate after cleanup.',
+            );
+            stopFailure =
+              stopFailure === undefined
+                ? attachFailure
+                : new AggregateError(
+                    [stopFailure, attachFailure],
+                    'The fixed-profile workload cleanup did not settle.',
+                  );
+          }
         }
 
         if (stopFailure !== undefined) {
@@ -1539,11 +1751,45 @@ export class DockerSandboxManager {
       const descendantObservation = observeDescendants
         ? await this.observeDescendants(name, deadlineAt, () => attachClosed)
         : emptyDescendantObservation();
-      await Promise.race([processClosed, stopCompleted]);
-      await stopPromise;
+      let attachFailure: Error | undefined;
+      try {
+        await Promise.race([processClosed, stopCompleted]);
+      } catch (error) {
+        attachFailure = toError(error, 'The fixed-profile workload attach process failed.');
+      }
+      let stopFailure: Error | undefined;
+      try {
+        await stopPromise;
+      } catch (error) {
+        stopFailure = toError(error, 'The fixed-profile workload cleanup failed.');
+      }
 
       if (callbackFailure !== undefined) {
-        throw callbackFailure;
+        const callbackError = toError(callbackFailure, 'The fixed-profile workload input failed.');
+        const cleanupFailures = [attachFailure, stopFailure].filter(
+          (failure): failure is Error => failure !== undefined,
+        );
+        if (cleanupFailures.length > 0) {
+          throw new AggregateError(
+            [callbackError, ...cleanupFailures],
+            'The fixed-profile workload input failed and its cleanup is unconfirmed.',
+          );
+        }
+
+        throw callbackError;
+      }
+
+      if (attachFailure !== undefined && stopFailure !== undefined) {
+        throw new AggregateError(
+          [attachFailure, stopFailure],
+          'The fixed-profile workload attach and cleanup both failed.',
+        );
+      }
+      if (attachFailure !== undefined) {
+        throw attachFailure;
+      }
+      if (stopFailure !== undefined) {
+        throw stopFailure;
       }
 
       const inspected = await runDocker([
@@ -1556,7 +1802,10 @@ export class DockerSandboxManager {
       const exitCode = Number.parseInt(exitCodeValue ?? '', 10);
 
       return {
-        cleanupConfirmed: inspected.exitCode === 0 && running === 'false',
+        cleanupConfirmed:
+          forceRemovalConfirmed ||
+          (inspected.exitCode === 0 && running === 'false') ||
+          isConfirmedContainerAbsence(inspected, name),
         descendantObservation,
         descendantsObserved: descendantObservation.observed,
         exitCode: Number.isSafeInteger(exitCode) ? exitCode : null,
@@ -1569,7 +1818,11 @@ export class DockerSandboxManager {
       clearTimeout(deadline);
       const inspected = await runDocker(['inspect', name, '--format', '{{.State.Running}}']);
 
-      if (inspected.exitCode === 0 && inspected.stdout.trim() === 'true') {
+      if (
+        stopPromise === undefined &&
+        inspected.exitCode === 0 &&
+        inspected.stdout.trim() === 'true'
+      ) {
         await requestStop('deadline');
       }
     }
@@ -2003,6 +2256,27 @@ async function runDocker(
   } = {},
 ): Promise<{ exitCode: number; outputLimited: boolean; stderr: string; stdout: string }> {
   return runCommand('docker', argumentsValue, options);
+}
+
+function isConfirmedContainerAbsence(
+  result: { exitCode: number; stderr: string; stdout: string },
+  name: string,
+): boolean {
+  if (result.exitCode === 0 || result.stdout.trim() !== '') {
+    return false;
+  }
+
+  const escapedName = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const message = result.stderr.trim();
+  return [
+    new RegExp(`^Error response from daemon: No such container: ${escapedName}$`, 'i'),
+    new RegExp(`^Error: No such container: ${escapedName}$`, 'i'),
+    new RegExp(`^error: no such object: ${escapedName}$`, 'i'),
+  ].some((pattern) => pattern.test(message));
+}
+
+function toError(error: unknown, fallbackMessage: string): Error {
+  return error instanceof Error ? error : new Error(fallbackMessage);
 }
 
 async function runCommand(
@@ -2560,4 +2834,181 @@ async function delay(delayMs: number): Promise<void> {
   await new Promise<void>((resolve) => {
     setTimeout(resolve, delayMs);
   });
+}
+
+async function withinCpuProbeDeadline<T>(promise: Promise<T>, message: string): Promise<T> {
+  let timer: NodeJS.Timeout | undefined;
+
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(() => reject(new Error(message)), CPU_PROBE_DEADLINE_MS);
+      }),
+    ]);
+  } finally {
+    if (timer !== undefined) {
+      clearTimeout(timer);
+    }
+  }
+}
+
+async function readLiveCpuProbeIdentity(name: string): Promise<CpuProbeIdentity> {
+  const inspected = await runDocker([
+    'inspect',
+    '--format',
+    '{{.State.Pid}} {{.State.Running}}',
+    name,
+  ]);
+  const [pidValue, running] = inspected.stdout.trim().split(' ');
+  const pid = Number.parseInt(pidValue ?? '', 10);
+
+  if (inspected.exitCode !== 0 || running !== 'true' || !Number.isSafeInteger(pid) || pid < 1) {
+    throw new Error('The CPU probe is not running with a trusted host PID.');
+  }
+
+  const processStart = await readProcStart(pid);
+  const cgroupContents = await readFile(`/proc/${pid}/cgroup`, 'utf8');
+  const cgroupPath = readUnifiedCgroupPath(cgroupContents);
+
+  return { cgroupPath, pid, processStart };
+}
+
+async function readCpuStatSnapshot(cgroupPath: string): Promise<CpuStatSnapshot> {
+  const contents = await readFile(join('/sys/fs/cgroup', cgroupPath, 'cpu.stat'), 'utf8');
+  return parseCpuStatSnapshot(contents);
+}
+
+function writeTrustedProbeInput(
+  input: NodeJS.WritableStream | undefined,
+  chunk: string,
+): Promise<void> {
+  if (input === undefined || !input.writable) {
+    return Promise.reject(new Error('The CPU probe input stream is unavailable.'));
+  }
+
+  return new Promise((resolve, reject) => {
+    input.write(chunk, (error) => {
+      if (error === null || error === undefined) {
+        resolve();
+      } else {
+        reject(error);
+      }
+    });
+  });
+}
+
+function assertSameCpuProbeIdentity(before: CpuProbeIdentity, after: CpuProbeIdentity): void {
+  if (
+    before.pid !== after.pid ||
+    before.processStart !== after.processStart ||
+    before.cgroupPath !== after.cgroupPath
+  ) {
+    throw new Error('The CPU probe changed host process or cgroup identity during measurement.');
+  }
+}
+
+function readUnifiedCgroupPath(contents: string): string {
+  const entry = contents.split('\n').find((line) => line.startsWith('0::'));
+  const cgroupPath = entry?.slice('0::'.length);
+
+  if (
+    cgroupPath === undefined ||
+    !cgroupPath.startsWith('/') ||
+    cgroupPath.includes('..') ||
+    cgroupPath.includes('\\')
+  ) {
+    throw new Error('The CPU probe does not have a valid unified cgroup path.');
+  }
+
+  return cgroupPath.slice(1);
+}
+
+async function readProcStart(pid: number): Promise<string> {
+  const contents = await readFile(`/proc/${pid}/stat`, 'utf8');
+  const closeParenthesis = contents.lastIndexOf(')');
+  const fields = contents.slice(closeParenthesis + 2).split(' ');
+  const start = fields[19];
+
+  if (closeParenthesis < 0 || start === undefined || !/^\d+$/.test(start)) {
+    throw new Error('The CPU probe host process identity is invalid.');
+  }
+
+  return start;
+}
+
+export function parseCpuStatSnapshot(contents: string): CpuStatSnapshot {
+  const values = new Map<string, number>();
+
+  for (const line of contents.trim().split('\n')) {
+    const [name, value, extra] = line.trim().split(/\s+/);
+    if (name === undefined || value === undefined || extra !== undefined || !/^\d+$/.test(value)) {
+      throw new Error('The cgroup CPU statistics are malformed.');
+    }
+    if (values.has(name)) {
+      throw new Error('The cgroup CPU statistics contain duplicate counters.');
+    }
+
+    const parsed = Number.parseInt(value, 10);
+    if (!Number.isSafeInteger(parsed)) {
+      throw new Error('The cgroup CPU statistics contain an unsafe counter.');
+    }
+    values.set(name, parsed);
+  }
+
+  const usageMicros = values.get('usage_usec');
+  const nrPeriods = values.get('nr_periods');
+  const nrThrottled = values.get('nr_throttled');
+
+  if (usageMicros === undefined || nrPeriods === undefined || nrThrottled === undefined) {
+    throw new Error('The cgroup CPU statistics omit required counters.');
+  }
+
+  return { nrPeriods, nrThrottled, usageMicros };
+}
+
+export function assessCpuProbe(input: {
+  after: CpuStatSnapshot;
+  before: CpuStatSnapshot;
+  cpuMaximum: string;
+  elapsedNanoseconds: bigint;
+}): CpuProbeAssessment {
+  const [quotaMicros, periodMicros] = readCpuMaximum(input.cpuMaximum);
+
+  if (
+    quotaMicros !== CPU_PROBE_QUOTA_MICROS ||
+    periodMicros !== CPU_PROBE_PERIOD_MICROS ||
+    input.elapsedNanoseconds <= 0n
+  ) {
+    throw new Error('The CPU probe did not retain the fixed half-core cgroup limit.');
+  }
+
+  const usageMicros = checkedCpuDelta(input.after.usageMicros, input.before.usageMicros);
+  const observedPeriods = checkedCpuDelta(input.after.nrPeriods, input.before.nrPeriods);
+  const observedThrottledPeriods = checkedCpuDelta(
+    input.after.nrThrottled,
+    input.before.nrThrottled,
+  );
+  const elapsedMicros = Number(input.elapsedNanoseconds) / 1_000;
+  const hostCpuToWallRatio = usageMicros / elapsedMicros;
+
+  if (
+    usageMicros <= 0 ||
+    observedPeriods <= 0 ||
+    observedThrottledPeriods <= 0 ||
+    !Number.isFinite(hostCpuToWallRatio) ||
+    hostCpuToWallRatio > CPU_PROBE_MAX_RATIO
+  ) {
+    throw new Error('The host cgroup CPU evidence did not satisfy the fixed half-core limit.');
+  }
+
+  return { hostCpuToWallRatio, hostUsageMicros: usageMicros, observedThrottledPeriods };
+}
+
+function checkedCpuDelta(after: number, before: number): number {
+  if (!Number.isSafeInteger(after) || !Number.isSafeInteger(before) || after < before) {
+    throw new Error('The cgroup CPU counter regressed or is invalid.');
+  }
+
+  return after - before;
 }

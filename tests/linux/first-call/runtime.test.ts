@@ -43,7 +43,10 @@ test(
         suite.qualification.probes.io.qualificationSyntheticFileBytes,
     );
     assert.ok(suite.qualification.probes.io.elapsedMs >= 12_000);
-    assert.ok(suite.qualification.probes.cpu.cpuToWallRatio <= 0.8);
+    assert.ok(Number.isFinite(suite.qualification.probes.cpu.cpuToWallRatio));
+    assert.ok(suite.qualification.probes.cpu.hostCpuToWallRatio <= 0.8);
+    assert.ok(suite.qualification.probes.cpu.hostUsageMicros > 0);
+    assert.ok(suite.qualification.probes.cpu.observedThrottledPeriods > 0);
     assert.equal(suite.qualification.probes.outputLimit.enforced, true);
     assert.equal(suite.qualification.probes.deadline.enforced, true);
     assert.equal(suite.qualification.probes.descendantCleanup.confirmed, true);
@@ -59,6 +62,7 @@ test(
 
     t.diagnostic(
       `qualification=${JSON.stringify({
+        cpu: suite.qualification.probes.cpu,
         imageId: suite.qualification.imageId,
         io: suite.qualification.probes.io,
         network: suite.qualification.probes.network,

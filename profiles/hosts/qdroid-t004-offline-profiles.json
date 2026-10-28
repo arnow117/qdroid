@@ -1,0 +1,34 @@
+{
+  "authority": "Documentary only. OciSandboxBackend owns the immutable catalog and rejects workload-selected profile configuration.",
+  "catalogVersion": "qdroid.t004.profile-catalog/v1",
+  "profiles": {
+    "tool-offline": {
+      "network": "none",
+      "readOnlyRoot": true,
+      "memoryMiB": 768
+    },
+    "build-restricted": {
+      "network": "none",
+      "readOnlyRoot": true,
+      "note": "T005 trusted fetch provides fixed dependencies before this offline execution."
+    },
+    "render-offline": {
+      "network": "none",
+      "readOnlyRoot": true,
+      "note": "Qualification does not claim Chromium or MP4 support."
+    }
+  },
+  "limits": {
+    "cpu": 1,
+    "deadlineMs": 120000,
+    "guestNproc": 32,
+    "hostPids": 256,
+    "ioBytesPerSecond": 1048576,
+    "memoryMiBMaximum": 1024,
+    "activeSandboxMemoryMiBMaximum": 1536,
+    "activeSandboxMaximum": 2,
+    "scratchMiB": 128,
+    "sharedMemoryMiB": 128,
+    "workloadOutputBytes": 16777216
+  }
+}

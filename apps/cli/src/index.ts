@@ -1,4 +1,5 @@
 import { createTrustedFixtureDriver } from '../../../fixtures/readonly-sim/src/driver.js';
+import { runSandboxBackendLinuxSuite } from '../../../fixtures/host-boundary/src/backend-suite.js';
 import { runLinuxReadonlyFixtureSuite } from '../../../fixtures/readonly-sim/src/linux-broker.js';
 import { createAdmissionFixture } from '../../../fixtures/admission/src/driver.js';
 import {
@@ -70,8 +71,44 @@ async function main(): Promise<void> {
     return;
   }
 
+  if (command === 'sandbox-demo') {
+    const image = parseLinuxImage(argumentsValue);
+
+    if (image === undefined) {
+      writeUsage();
+      process.exitCode = 1;
+      return;
+    }
+
+    try {
+      const suite = await runSandboxBackendLinuxSuite(image);
+      console.log(
+        JSON.stringify(
+          {
+            executionScope:
+              'fixed ARM64 Linux offline sandbox profiles; this is not T1, Chromium, or package-fetch qualification',
+            suite,
+          },
+          null,
+          2,
+        ),
+      );
+    } catch (error) {
+      console.error(sandboxDemoFailureDiagnostic(error));
+      process.exitCode = 1;
+    }
+    return;
+  }
+
   writeUsage();
   process.exitCode = 1;
+}
+
+function sandboxDemoFailureDiagnostic(error: unknown): string {
+  if (error instanceof Error && error.message.startsWith('T004 Linux suite failed during ')) {
+    return error.message;
+  }
+  return 'Linux sandbox backend qualification or execution failed.';
 }
 
 async function runAdmissionDemo(
@@ -288,4 +325,5 @@ function writeUsage(): void {
     '       qdroid admission-demo [--fixture allow|cancel-first|forged|recovery|ungranted]',
   );
   console.error('       qdroid linux-demo --image <qualified-fixture-image>');
+  console.error('       qdroid sandbox-demo --image <qualified-fixture-image>');
 }

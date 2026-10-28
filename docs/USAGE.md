@@ -145,14 +145,17 @@ executor may reconcile only after the old executor session has been fenced after
 confirmed exit.
 
 For the fixed ARM64 Linux sandbox journey, build the changed fixture image on the
-dedicated VM, then use its immutable local image ID for the single full
-qualification run. This runs the retained seven T002 first-call cases plus normal,
-cancel-first, forged-authority, and ungranted admission cases:
+dedicated VM, then resolve immutable local image IDs for both trusted test
+surfaces. The two names may resolve to the same immutable ID only when their
+inputs are identical. The cumulative suite requires both values: the retained
+T002/T003 fixture and the T004 offline-profile qualification matrix.
 
 ```sh
-docker build --tag qdroid-t003:local fixtures/readonly-sim
-image_id="$(docker image inspect --format '{{.Id}}' qdroid-t003:local)"
-QDROID_T002_IMAGE="$image_id" npm run test:linux
+docker build --tag qdroid-t002:local fixtures/readonly-sim
+docker build --tag qdroid-t004:local fixtures/readonly-sim
+t002_image="$(docker image inspect --format '{{.Id}}' qdroid-t002:local)"
+t004_image="$(docker image inspect --format '{{.Id}}' qdroid-t004:local)"
+QDROID_T002_IMAGE="$t002_image" QDROID_T004_IMAGE="$t004_image" npm run test:linux
 ```
 
 The Linux test must exit successfully before treating its records as evidence. It
@@ -176,6 +179,13 @@ fixed Ubuntu 22 / Node 24.16.0 image inputs in
 [the host profile](../profiles/hosts/qdroid-t002-readonly-sim.json). These VM paths
 and the `/dev/vdb` device are development-fixture inputs, not T1 configuration.
 
+The dedicated development VM was updated to fixed Engine/CLI `29.9.2` on
+2026-10-28 after retained logs localized a Docker exit-event defect during a
+backwards clock step. gVisor, images and isolation limits were preserved. The
+version above describes historical acceptance; T004 has now verified the new
+runtime fingerprint, the retained eleven call scenarios and three offline profiles
+on this fixed ARM64 development environment.
+
 Use Node `v24.16.0` and npm `11.13.0`. The broker requires the named runtime to be
 registered before it starts; inspect it before running the suite:
 
@@ -193,29 +203,33 @@ sudo install -d -m 0700 -o "$(id -u)" -g "$(id -g)" \
   /mnt/lima-colima-qdroid-t002/qdroid-t002-io
 ```
 
-Build the fixture locally, resolve its immutable ID, and run the complete Linux
-qualification plus seven first-call scenarios:
+Build the fixture locally, resolve immutable IDs for both trusted Linux surfaces,
+and run the cumulative qualification plus first-call scenarios:
 
 ```sh
 docker build --tag qdroid-t002:local fixtures/readonly-sim
-image_id="$(docker image inspect --format '{{.Id}}' qdroid-t002:local)"
-QDROID_T002_IMAGE="$image_id" npm run test:linux
+docker build --tag qdroid-t004:local fixtures/readonly-sim
+t002_image="$(docker image inspect --format '{{.Id}}' qdroid-t002:local)"
+t004_image="$(docker image inspect --format '{{.Id}}' qdroid-t004:local)"
+QDROID_T002_IMAGE="$t002_image" QDROID_T004_IMAGE="$t004_image" npm run test:linux
 ```
 
 To print the qualification report and all eleven scenario results from the public
-CLI, use the same local image:
+CLI, use the retained fixture image:
 
 ```sh
-npm run linux:demo -- --image "$image_id"
+npm run linux:demo -- --image "$t002_image"
 ```
 
-The CLI journey was independently run on the same frozen source and image. It
-exited `0`; every scenario completed with exit `0` after consuming its final
-response. The allowed call performed one simulator operation, and every rejected
-call performed zero. Task containers and qualification I/O files were absent
-afterward.
+The accepted T003 CLI journey used immutable image
+`sha256:ba0d9c3ddb249ef76ea8a369b17de94e5cce92d4f88d67bfbdcf81b50e386f0f`.
+It exited `0`; all eleven scenarios completed with exit `0` after consuming
+their final response. The allowed status call performed one simulator operation,
+and every rejected status call performed zero. Task containers and qualification
+I/O files were absent afterward. Final T004 checks require their own current
+source and image evidence in the Feature engineering context.
 
-The verified 2026-10-26 invocation used
+An earlier T002-only qualification on 2026-10-26 used
 `sha256:91a138aa70d02bc0cc94b3293cd8f7d76763bcd542ea679f677dd00957125252`
 and exited `0`. Its qualification observed a `16,777,216` byte cgroup read delta
 in `15,957.337871` ms under the fixed `1,048,576` B/s I/O limit. Before the
@@ -245,8 +259,9 @@ qualification handle is rejected.
 
 ### Linux failure feedback and support boundary
 
-Omitting `QDROID_T002_IMAGE` exits nonzero with
-`QDROID_T002_IMAGE is required for the real Linux fixture suite.` A missing image,
+Omitting both image variables exits nonzero with
+`QDROID_T002_IMAGE, QDROID_T004_IMAGE is required for the real Linux fixture suite.`
+If only one is missing, the bounded error names that variable. A missing image,
 profile mismatch, failed qualification, or runtime failure fails closed before the
 first-call scenarios; the implementation never falls back to runc or host
 execution. Preserve the bounded error and cleanup evidence, then correct the
@@ -262,3 +277,60 @@ implementation and evidence are tracked in
 [T002](https://github.com/arnow117/qdroid/issues/4),
 [T003](https://github.com/arnow117/qdroid/issues/5), and the
 [engineering context](../.sdlc-v1/context/FEAT-MVP-001.engineering.md).
+
+## USE-001 / USE-002: offline sandbox-backend qualification
+
+T004 has accepted the trusted `SandboxBackend` path for `tool-offline`,
+`build-restricted`, and `render-offline`. A package does not call this API. The
+trusted manager selects an already-local immutable image, a code-owned profile,
+and the supervised identity before it creates a sandbox. The first three profiles
+all have `network=none`; `build-restricted` receives content from a future trusted
+fetch service and does not receive direct registry access. Render qualification
+does not claim Chromium or MP4 support.
+
+Use the dedicated ARM64 Linux VM and images that satisfy the fixed T002
+preconditions. After building the two fixture tags in the preceding Linux
+section, resolve both immutable IDs for the cumulative suite:
+
+```sh
+t002_image="$(docker image inspect --format '{{.Id}}' qdroid-t002:local)"
+t004_image="$(docker image inspect --format '{{.Id}}' qdroid-t004:local)"
+QDROID_T002_IMAGE="$t002_image" QDROID_T004_IMAGE="$t004_image" npm run test:linux
+```
+
+The T004 case qualifies every profile/image tuple separately, then checks binary
+stdio round-trip, EOF, task-owned cancellation and peer survival. It uses a
+private cleanup journal owned by the trusted manager. A foreign, malformed, or
+future-version record remains for investigation; it never restores execution
+authority. The manager admits at most two active sandboxes and reserves their
+declared memory until cleanup is confirmed. Its total active memory limit is
+1536 MiB, so two 1024 MiB profiles are not admitted together.
+
+Execution completion and cleanup confirmation are separate results. The trusted
+fixture retains the original completion, then explicitly stops each completed
+handle that has not already received a stop. It requires that owning backend's
+final `status=confirmed` and `cleanupConfirmed=true` before admitting the next
+independent scenario. A later confirmation does not change the first result or
+turn an execution failure into success. Pending or unknown final cleanup fails
+the journey and retains its evidence and reservation; the fixture does not loop
+or replay the workload.
+
+The execution journal does not establish complete crash recovery for all legacy
+and profile qualification resources. Executable installer integration requires
+the planned durable qualification session to cover those resources before it
+can release a crashed qualifier's reservation. An empty execution journal is
+insufficient cleanup evidence. Cross-image, node-wide admission is also a later
+integration; the current backend's counters are local to that backend.
+
+To run only the T004 public trusted-manager journey after building, use:
+
+```sh
+npm run sandbox:demo -- --image "$t004_image"
+```
+
+Failure to qualify, a stale handle, an unknown profile, an unavailable guardian,
+or unconfirmed cleanup fails closed. Stop the affected task and inspect the
+trusted manager evidence; do not retry a workload by using host execution or by
+altering a package profile. This remains a fixed Linux development qualification,
+not T1, real-account, package-installation, network-enabled build, Chromium, or
+media support.

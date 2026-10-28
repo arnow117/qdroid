@@ -24,9 +24,10 @@
     "lint": "npm run check:runtime && tsc --project tsconfig.json --noEmit",
     "test": "npm run build && node --test dist/tests/contracts/*.test.js dist/tests/admission/*.test.js dist/tests/recovery/*.test.js",
     "test:admission": "npm run build && node --test dist/tests/admission/*.test.js dist/tests/recovery/*.test.js",
-    "test:linux": "npm run build && node scripts/require-linux-image.mjs && node --test dist/tests/linux/admission/*.test.js",
+    "test:linux": "npm run build && node scripts/require-linux-image.mjs && node --test --test-concurrency=1 dist/tests/linux/admission/*.test.js dist/tests/linux/qualification/*.test.js",
     "demo": "npm run build && node dist/apps/cli/src/index.js demo",
-    "linux:demo": "npm run build && node dist/apps/cli/src/index.js linux-demo"
+    "linux:demo": "npm run build && node dist/apps/cli/src/index.js linux-demo",
+    "sandbox:demo": "npm run build && node dist/apps/cli/src/index.js sandbox-demo"
   },
   "devDependencies": {
     "@types/node": "24.10.0",
