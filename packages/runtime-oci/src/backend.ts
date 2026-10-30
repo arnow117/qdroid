@@ -33,7 +33,6 @@ import type {
   SandboxExecutionRequest,
   SandboxIdentityBinding,
   SandboxInstance,
-  SandboxLimits,
   SandboxProfileId,
   SandboxQualification,
 } from '../../contracts/src/index.js';
@@ -43,6 +42,21 @@ import {
   type QualificationEvidence,
   type QualificationIoMount,
 } from './index.js';
+import {
+  PROFILE_CPU_PROBE_DEADLINE_MS,
+  PROFILE_CPU_PROBE_SOURCE,
+  PROFILE_IO_DEVICE_MAJOR_MINOR,
+  PROFILE_IO_PROBE_DEADLINE_MS,
+  PROFILE_IO_PROBE_FILE_BYTES,
+  PROFILE_IO_MIN_DURATION_MS,
+  PROFILE_IO_PROBE_SOURCE,
+  PROFILE_NETWORK_PROBE_DEADLINE_MS,
+  PROFILE_NETWORK_PROBE_SOURCE,
+  SANDBOX_PROFILE_CATALOG,
+  type OfflineSandboxProfile,
+} from '../../supervisor/src/fixed-probe-catalog.js';
+import { verifyManagedProfileTuple } from './profile-qualification.js';
+import type { RuntimeResourceOps } from './resource-ops.js';
 
 const CATALOG_VERSION = 'qdroid.t004.profile-catalog/v1';
 const LEGACY_CLEANUP_JOURNAL_VERSION = 2;
@@ -79,171 +93,8 @@ const MAX_ARGUMENTS = 64;
 const MAX_ARGUMENT_BYTES = 4_096;
 const MAX_ENVIRONMENT_ENTRIES = 24;
 const MAX_ENVIRONMENT_VALUE_BYTES = 4_096;
-const PROFILE_CPU_PROBE_DEADLINE_MS = 10_000;
-const PROFILE_CPU_PROBE_SOURCE = [
-  'let phase = "ready";',
-  'process.stdout.write("ready\\n");',
-  'process.stdin.on("data", (chunk) => {',
-  '  const command = chunk.toString("utf8").trim();',
-  '  if (command === "start" && phase === "ready") {',
-  '    phase = "computing";',
-  '    const startedAt = process.hrtime.bigint();',
-  '    while (process.hrtime.bigint() - startedAt < 2_000_000_000n) { Math.sqrt(Math.random()); }',
-  '    process.stdout.write(JSON.stringify({ completed: true }) + "\\n");',
-  '    phase = "complete";',
-  '    return;',
-  '  }',
-  '  if (command === "cancel" || (command === "release" && phase === "complete")) { process.exit(0); }',
-  '});',
-].join('\n');
-const PROFILE_IO_PROBE_FILE_BYTES = 16 * 1024 * 1024;
-const PROFILE_IO_MIN_DURATION_MS = 12_000;
-const PROFILE_IO_PROBE_DEADLINE_MS = 30_000;
-const PROFILE_IO_DEVICE_MAJOR_MINOR = '253:16';
-const PROFILE_IO_PROBE_SOURCE = [
-  'const { spawn } = require("node:child_process");',
-  'let phase = "ready";',
-  'process.stdout.write("ready\\n");',
-  'process.stdin.on("data", (chunk) => {',
-  '  const command = chunk.toString("utf8").trim();',
-  '  if (command === "read" && phase === "ready") {',
-  '    phase = "reading";',
-  '    const startedAt = process.hrtime.bigint();',
-  '    const reader = spawn("/usr/bin/dd", ["if=/opt/qdroid/io-probe.bin", "of=/dev/null", "bs=1M", "count=16", "status=none"]);',
-  '    reader.once("close", (code) => {',
-  '      const elapsedMs = Number(process.hrtime.bigint() - startedAt) / 1_000_000;',
-  '      process.stdout.write(JSON.stringify({ code, elapsedMs }) + "\\n");',
-  '      phase = "complete";',
-  '    });',
-  '    return;',
-  '  }',
-  '  if (command === "release" && phase === "complete") { process.exit(0); }',
-  '});',
-].join('\n');
-const PROFILE_NETWORK_PROBE_DEADLINE_MS = 1_000;
-const PROFILE_NETWORK_PROBE_SOURCE = [
-  'const dgram = require("node:dgram");',
-  'const dns = require("node:dns");',
-  'const net = require("node:net");',
-  'const targets = JSON.parse(process.argv[1]);',
-  'const blockedTcp = (host, port) => new Promise((resolve) => {',
-  '  const socket = net.connect({ host, port });',
-  '  let settled = false;',
-  '  let timer;',
-  '  const finish = (value) => {',
-  '    if (!settled) {',
-  '      settled = true;',
-  '      if (timer !== undefined) { clearTimeout(timer); }',
-  '      resolve(value);',
-  '    }',
-  '  };',
-  '  timer = setTimeout(() => { socket.destroy(); finish(true); }, 300);',
-  '  socket.once("connect", () => { socket.destroy(); finish(false); });',
-  '  socket.once("error", () => finish(true));',
-  '});',
-  'const sendUdp = (host, port, type) => new Promise((resolve) => {',
-  '  const socket = dgram.createSocket(type);',
-  '  let settled = false;',
-  '  let timer;',
-  '  const finish = () => {',
-  '    if (!settled) {',
-  '      settled = true;',
-  '      if (timer !== undefined) { clearTimeout(timer); }',
-  '      socket.close();',
-  '      resolve(true);',
-  '    }',
-  '  };',
-  '  timer = setTimeout(finish, 300);',
-  '  socket.once("error", finish);',
-  '  socket.send(Buffer.from([0x51]), port, host, finish);',
-  '});',
-  'const blockedDns = (host, port) => new Promise((resolve) => {',
-  '  const resolver = new dns.Resolver();',
-  '  const resolverHost = host.includes(":") ? `[${host}]` : host;',
-  '  resolver.setServers([`${resolverHost}:${port}`]);',
-  '  let settled = false;',
-  '  let timer;',
-  '  const finish = (value) => {',
-  '    if (!settled) {',
-  '      settled = true;',
-  '      if (timer !== undefined) { clearTimeout(timer); }',
-  '      resolve(value);',
-  '    }',
-  '  };',
-  '  timer = setTimeout(() => { resolver.cancel(); finish(true); }, 300);',
-  '  resolver.resolve4("metadata.qdroid.invalid", (error) => finish(error !== null));',
-  '});',
-  'if (!Array.isArray(targets) || targets.length === 0) { throw new Error("missing trusted network targets"); }',
-  'Promise.all(targets.map(async (target) => {',
-  '  if (!target || typeof target.host !== "string" || !Number.isInteger(target.tcpPort) || !Number.isInteger(target.udpPort) || !Number.isInteger(target.dnsPort) || (target.family !== "ipv4" && target.family !== "ipv6")) {',
-  '    throw new Error("invalid trusted network target");',
-  '  }',
-  '  const udpType = target.family === "ipv6" ? "udp6" : "udp4";',
-  '  const [tcpBlocked, udpAttemptCompleted, dnsBlocked] = await Promise.all([',
-  '    blockedTcp(target.host, target.tcpPort),',
-  '    sendUdp(target.host, target.udpPort, udpType),',
-  '    blockedDns(target.host, target.dnsPort),',
-  '  ]);',
-  '  return { dnsBlocked, tcpBlocked, udpAttemptCompleted };',
-  '})).then((results) => {',
-  '  process.stdout.write(JSON.stringify({',
-  '    dnsBlocked: results.every((result) => result.dnsBlocked),',
-  '    tcpBlocked: results.every((result) => result.tcpBlocked),',
-  '    udpAttemptsCompleted: results.every((result) => result.udpAttemptCompleted),',
-  '  }));',
-  '});',
-].join('\n');
-
-export interface OfflineSandboxProfile {
-  featureSet: {
-    chromium: boolean;
-    packageFetch: boolean;
-  };
-  id: SandboxProfileId;
-  limits: SandboxLimits;
-  network: 'none';
-  readOnlyRoot: true;
-  runtime: 'qdroid-runsc';
-}
-
-const MAX_PROFILE_LIMITS: SandboxLimits = Object.freeze({
-  cpu: 1,
-  deadlineMs: 120_000,
-  guestNproc: 32,
-  hostPids: 256,
-  ioBytesPerSecond: 1_048_576,
-  maxInputBytes: 1_048_576,
-  maxOutputBytes: 16 * 1024 * 1024,
-  memoryMiB: 1024,
-  scratchMiB: 128,
-  sharedMemoryMiB: 128,
-});
-
-function profile(
-  id: SandboxProfileId,
-  featureSet: OfflineSandboxProfile['featureSet'],
-  memoryMiB: number,
-): OfflineSandboxProfile {
-  return Object.freeze({
-    featureSet: Object.freeze(featureSet),
-    id,
-    limits: Object.freeze({ ...MAX_PROFILE_LIMITS, memoryMiB }),
-    network: 'none',
-    readOnlyRoot: true,
-    runtime: 'qdroid-runsc',
-  });
-}
-
-/**
- * The catalog is code-owned and immutable. JSON files under profiles/hosts are
- * documentation for operators; they are never a workload-controlled input.
- */
-export const SANDBOX_PROFILE_CATALOG: Readonly<Record<SandboxProfileId, OfflineSandboxProfile>> =
-  Object.freeze({
-    'build-restricted': profile('build-restricted', { chromium: false, packageFetch: false }, 1024),
-    'render-offline': profile('render-offline', { chromium: false, packageFetch: false }, 1024),
-    'tool-offline': profile('tool-offline', { chromium: false, packageFetch: false }, 768),
-  });
+export { SANDBOX_PROFILE_CATALOG };
+export type { OfflineSandboxProfile };
 
 interface TrustedQualification extends SandboxQualification {
   readonly hostFingerprint: string;
@@ -661,6 +512,8 @@ export interface OciSandboxBackendTrustedTestHooks {
 export interface OciSandboxBackendOptions {
   image: string;
   ownerStorePath: string;
+  /** Private installer-owned resources; ordinary T002/T003 callers omit it. */
+  resources?: RuntimeResourceOps;
   trustedTestHooks?: OciSandboxBackendTrustedTestHooks;
 }
 
@@ -900,6 +753,11 @@ export class OciSandboxBackend implements SandboxBackend {
 
   public async qualify(profileId: SandboxProfileId): Promise<SandboxQualification> {
     const profile = parseSandboxProfile(profileId);
+    // An executable package install injects a session owner. It must never
+    // reach the legacy/profile helpers until every effect they create is
+    // managed by that owner; otherwise those helpers would spawn raw Docker,
+    // file, socket, and control resources outside the BuildSession.
+    this.options.resources?.assertQualificationReady();
     await this.ensureOwnerStore();
     await this.assertNoPendingNetworkFixtureQualification();
 
@@ -907,17 +765,28 @@ export class OciSandboxBackend implements SandboxBackend {
     // network and descendant-cleanup controls. The profile tuple suite below
     // independently starts workloads under this exact profile and verifies its
     // effective limits and negative controls.
-    this.legacyManager ??= new DockerSandboxManager({ image: this.options.image });
+    this.legacyManager ??= new DockerSandboxManager({
+      image: this.options.image,
+      ...(this.options.resources === undefined ? {} : { resources: this.options.resources }),
+    });
     this.legacyQualification ??= this.legacyManager.qualify();
     const legacyEvidence = await this.legacyQualification;
     await this.legacyManager.assertQualificationCurrent(legacyEvidence);
-    const imageId = await inspectImageId(this.options.image);
-    const fingerprintBeforeProbes = await currentHostFingerprint(profile, imageId);
-    await verifyProfileTuple(profile, imageId, this.legacyManager, () =>
-      this.createTrustedProfileNetworkFixture(),
+    const imageId = await inspectImageId(this.options.image, this.options.resources);
+    const fingerprintBeforeProbes = await currentHostFingerprint(
+      profile,
+      imageId,
+      this.options.resources,
+    );
+    await verifyProfileTuple(
+      profile,
+      imageId,
+      this.legacyManager,
+      () => this.createTrustedProfileNetworkFixture(),
+      this.options.resources,
     );
     await this.legacyManager.assertQualificationCurrent(legacyEvidence);
-    const hostFingerprint = await currentHostFingerprint(profile, imageId);
+    const hostFingerprint = await currentHostFingerprint(profile, imageId, this.options.resources);
     if (hostFingerprint !== fingerprintBeforeProbes) {
       throw new Error('The sandbox host tuple changed while qualification probes were running.');
     }
@@ -1472,7 +1341,11 @@ export class OciSandboxBackend implements SandboxBackend {
     }
 
     const profile = parseSandboxProfile(trustedQualification.profileId);
-    const current = await currentHostFingerprint(profile, trustedQualification.imageId);
+    const current = await currentHostFingerprint(
+      profile,
+      trustedQualification.imageId,
+      this.options.resources,
+    );
     if (current !== trustedQualification.hostFingerprint) {
       throw new Error('The sandbox qualification is stale for the current host tuple.');
     }
@@ -3185,7 +3058,13 @@ async function verifyProfileTuple(
   imageId: string,
   legacyManager: DockerSandboxManager,
   createNetworkFixture: () => Promise<TrustedProfileNetworkFixture>,
+  resources?: RuntimeResourceOps,
 ): Promise<void> {
+  if (resources !== undefined) {
+    await verifyManagedProfileTuple(profile, imageId, resources);
+    return;
+  }
+
   const controls = await runProfileWorkload(profile, imageId, [
     '-e',
     [
@@ -5436,12 +5315,13 @@ function isCleanupDeadlineError(error: unknown): boolean {
 async function currentHostFingerprint(
   profile: OfflineSandboxProfile,
   imageId: string,
+  resources?: RuntimeResourceOps,
 ): Promise<string> {
   const [boot, image, kernel, runtime] = await Promise.all([
     readTrustedBootId(),
-    inspectImageId(imageId),
-    runCommand('uname', ['-r']),
-    collectRuntimeFingerprintFacts(),
+    inspectImageId(imageId, resources),
+    runFixedNative(resources, { kind: 'kernel-release' }, () => runCommand('uname', ['-r'])),
+    collectRuntimeFingerprintFacts(resources),
   ]);
   if (kernel.exitCode !== 0 || image !== imageId) {
     throw new Error('The trusted sandbox host fingerprint is unavailable.');
@@ -5457,11 +5337,17 @@ async function currentHostFingerprint(
   });
 }
 
-async function collectRuntimeFingerprintFacts(): Promise<RuntimeFingerprintFacts> {
+async function collectRuntimeFingerprintFacts(
+  resources?: RuntimeResourceOps,
+): Promise<RuntimeFingerprintFacts> {
   const [architecture, dockerVersion, runtimes] = await Promise.all([
-    runCommand('uname', ['-m']),
-    runDocker(['version', '--format', '{{.Server.Version}}']),
-    runDocker(['info', '--format', '{{json .Runtimes}}']),
+    runFixedNative(resources, { kind: 'machine-architecture' }, () => runCommand('uname', ['-m'])),
+    runFixedNative(resources, { kind: 'docker-server-version' }, () =>
+      runDocker(['version', '--format', '{{.Server.Version}}']),
+    ),
+    runFixedNative(resources, { kind: 'docker-runtime-info' }, () =>
+      runDocker(['info', '--format', '{{json .Runtimes}}']),
+    ),
   ]);
   if (architecture.exitCode !== 0 || dockerVersion.exitCode !== 0 || runtimes.exitCode !== 0) {
     throw new Error('The qualified sandbox runtime facts are unavailable.');
@@ -5481,12 +5367,16 @@ async function collectRuntimeFingerprintFacts(): Promise<RuntimeFingerprintFacts
   ) {
     throw new Error('The configured sandbox runtime is incomplete.');
   }
+  const runtimePath = runtime.path;
+  const runtimeArguments = runtime.runtimeArgs;
 
   const [runtimeVersion, runtimeComponentDigests] = await Promise.all([
-    runCommand(runtime.path, ['--version']),
-    collectRuntimeComponentDigests(runtime.path),
+    runFixedNative(resources, { kind: 'runtime-version', path: runtimePath }, () =>
+      runCommand(runtimePath, ['--version']),
+    ),
+    collectRuntimeComponentDigests(runtimePath, resources),
   ]);
-  const runtimeBinaryDigest = runtimeComponentDigests[runtime.path];
+  const runtimeBinaryDigest = runtimeComponentDigests[runtimePath];
   if (
     runtimeVersion.exitCode !== 0 ||
     runtimeBinaryDigest === undefined ||
@@ -5498,17 +5388,19 @@ async function collectRuntimeFingerprintFacts(): Promise<RuntimeFingerprintFacts
   return {
     architecture: architecture.stdout.trim(),
     dockerVersion: dockerVersion.stdout.trim(),
-    runtimeArguments: [...runtime.runtimeArgs],
+    runtimeArguments: [...runtimeArguments],
     runtimeBinaryDigest,
     runtimeComponentDigests,
     runtimeConfiguration: JSON.stringify(runtime),
-    runtimePath: runtime.path,
+    runtimePath,
     runtimeVersion: runtimeVersion.stdout.trim(),
   };
 }
 
-async function inspectImageId(image: string): Promise<string> {
-  const inspected = await runDocker(['image', 'inspect', '--format', '{{.Id}}', image]);
+async function inspectImageId(image: string, resources?: RuntimeResourceOps): Promise<string> {
+  const inspected = await runFixedNative(resources, { imageId: image, kind: 'image-id' }, () =>
+    runDocker(['image', 'inspect', '--format', '{{.Id}}', image]),
+  );
   const imageId = inspected.stdout.trim();
   if (inspected.exitCode !== 0 || !isImmutableImageReference(imageId)) {
     throw new Error('The sandbox image is not an available immutable local image ID.');
@@ -6254,11 +6146,16 @@ export function isConfirmedContainerAbsence(
 
 async function collectRuntimeComponentDigests(
   runtimePath: string,
+  resources?: RuntimeResourceOps,
 ): Promise<Record<string, string>> {
   const paths = [...new Set([runtimePath, ...RUNTIME_COMPONENT_PATHS])];
   const entries = await Promise.all(
     paths.map(async (path) => {
-      const checksum = await runCommand('sha256sum', [path]);
+      const checksum = await runFixedNative(
+        resources,
+        { kind: 'runtime-component-sha256', path },
+        () => runCommand('sha256sum', [path]),
+      );
       const digest = checksum.stdout.trim().split(/\s+/)[0];
       if (checksum.exitCode !== 0 || digest === undefined || !/^[a-f0-9]{64}$/i.test(digest)) {
         throw new Error('A required sandbox runtime component cannot be qualified.');
@@ -6272,6 +6169,28 @@ async function collectRuntimeComponentDigests(
 
 interface TrustedCommandOptions {
   signal?: AbortSignal | undefined;
+}
+
+async function runFixedNative(
+  resources: RuntimeResourceOps | undefined,
+  intent: import('./resource-ops.js').FixedNativeIntent,
+  fallback: () => Promise<DockerCommandResult>,
+): Promise<DockerCommandResult> {
+  if (resources === undefined) {
+    return fallback();
+  }
+
+  const owned = await resources.native(intent);
+  const result = await owned.completion;
+  if (!result.cleanupConfirmed) {
+    throw new Error('A managed trusted native command has unresolved cleanup.');
+  }
+  return {
+    commandCompleted: true,
+    exitCode: result.exitCode,
+    stderr: result.stderr,
+    stdout: result.stdout,
+  };
 }
 
 async function runDocker(

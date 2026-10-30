@@ -22,9 +22,9 @@
     "format": "prettier --write --ignore-unknown package.json tsconfig.json .prettierrc.json THIRD_PARTY_NOTICES.md packages apps adapters fixtures tests scripts profiles/hosts docs/USAGE.md",
     "format:check": "prettier --check --ignore-unknown package.json tsconfig.json .prettierrc.json THIRD_PARTY_NOTICES.md packages apps adapters fixtures tests scripts profiles/hosts docs/USAGE.md",
     "lint": "npm run check:runtime && tsc --project tsconfig.json --noEmit",
-    "test": "npm run build && node --test dist/tests/contracts/*.test.js dist/tests/admission/*.test.js dist/tests/recovery/*.test.js",
+    "test": "npm run build && node --test dist/tests/contracts/*.test.js dist/tests/admission/*.test.js dist/tests/recovery/*.test.js dist/tests/packages/install/*.test.js",
     "test:admission": "npm run build && node --test dist/tests/admission/*.test.js dist/tests/recovery/*.test.js",
-    "test:linux": "npm run build && node scripts/require-linux-image.mjs && node --test --test-concurrency=1 dist/tests/linux/admission/*.test.js dist/tests/linux/qualification/*.test.js",
+    "test:linux": "npm run build && node scripts/require-linux-image.mjs && node --test --test-concurrency=1 dist/tests/linux/admission/*.test.js dist/tests/linux/packages/*.test.js dist/tests/linux/qualification/*.test.js",
     "demo": "npm run build && node dist/apps/cli/src/index.js demo",
     "linux:demo": "npm run build && node dist/apps/cli/src/index.js linux-demo",
     "sandbox:demo": "npm run build && node dist/apps/cli/src/index.js sandbox-demo"
@@ -33,5 +33,10 @@
     "@types/node": "24.10.0",
     "prettier": "3.6.2",
     "typescript": "5.9.3"
+  },
+  "dependencies": {
+    "@types/semver": "7.8.0",
+    "semver": "7.8.5",
+    "tar": "7.5.22"
   }
 }

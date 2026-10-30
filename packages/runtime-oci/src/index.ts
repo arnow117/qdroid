@@ -8,8 +8,19 @@ import { createSocket, type Socket as DatagramSocket } from 'node:dgram';
 import { join } from 'node:path';
 
 export * from './backend.js';
+export * from './assembler.js';
+export * from './build-executor.js';
+export * from './resource-ops.js';
+export * from './session-runtime.js';
 
 import type { JsonRpcResponse } from '../../contracts/src/index.js';
+import type {
+  FixedNativeIntent,
+  LegacyHostInputFixture,
+  OwnedProbe,
+  OwnedProbeExecution,
+  RuntimeResourceOps,
+} from './resource-ops.js';
 import {
   BoundedStdioSession,
   readTrustedLinuxBootId,
@@ -251,6 +262,7 @@ export interface DescendantObservation {
 
 export interface DockerSandboxManagerOptions {
   image: string;
+  resources?: RuntimeResourceOps;
 }
 
 interface DockerRuntimeInfo {
@@ -316,6 +328,7 @@ export class DockerSandboxManager {
   public constructor(private readonly options: DockerSandboxManagerOptions) {}
 
   public async qualify(): Promise<QualificationEvidence> {
+    this.options.resources?.assertQualificationReady();
     const facts = await this.collectFingerprintFacts();
     const probes = await this.runQualificationProbes(facts.imageId);
     const fingerprint = digestJson(facts);
@@ -484,14 +497,19 @@ export class DockerSandboxManager {
     const hostBootId = await readTrustedLinuxBootId();
     const [kernelRelease, architecture, dockerVersion, runtimeInfo, image, dockerStorageDevice] =
       await Promise.all([
-        runCommand('uname', ['-r']),
-        runCommand('uname', ['-m']),
-        runDocker(['version', '--format', '{{.Server.Version}}']),
+        this.runFixedNative({ kind: 'kernel-release' }, () => runCommand('uname', ['-r'])),
+        this.runFixedNative({ kind: 'machine-architecture' }, () => runCommand('uname', ['-m'])),
+        this.runFixedNative({ kind: 'docker-server-version' }, () =>
+          runDocker(['version', '--format', '{{.Server.Version}}']),
+        ),
         this.readRuntimeInfo(),
         this.readImageInfo(),
         this.readDockerStorageDevice(),
       ]);
-    const runtimeVersion = await runCommand(runtimeInfo.path, ['--version']);
+    const runtimeVersion = await this.runFixedNative(
+      { kind: 'legacy-runtime-version', path: runtimeInfo.path },
+      () => runCommand(runtimeInfo.path, ['--version']),
+    );
     const runtimeComponents = await this.readRuntimeComponents(runtimeInfo.path);
 
     if (
@@ -545,7 +563,9 @@ export class DockerSandboxManager {
   }
 
   private async readRuntimeInfo(): Promise<DockerRuntimeInfo> {
-    const result = await runDocker(['info', '--format', '{{json .Runtimes}}']);
+    const result = await this.runFixedNative({ kind: 'docker-runtime-info' }, () =>
+      runDocker(['info', '--format', '{{json .Runtimes}}']),
+    );
     const runtimes = JSON.parse(result.stdout) as Record<string, unknown>;
     const candidate = runtimes['qdroid-runsc'];
 
@@ -568,14 +588,18 @@ export class DockerSandboxManager {
   }
 
   private async readDockerStorageDevice(): Promise<string> {
-    const source = await runCommand('findmnt', ['-no', 'SOURCE', '/var/lib/docker']);
+    const source = await this.runFixedNative({ kind: 'legacy-storage-source' }, () =>
+      runCommand('findmnt', ['-no', 'SOURCE', '/var/lib/docker']),
+    );
     const sourceDevice = source.stdout.trim().split('[')[0];
 
     if (source.exitCode !== 0 || sourceDevice !== '/dev/vdb1') {
       throw new Error('Docker storage is not on the fixed T002 backing partition.');
     }
 
-    const parent = await runCommand('lsblk', ['-no', 'PKNAME', '/dev/vdb1']);
+    const parent = await this.runFixedNative({ kind: 'legacy-storage-parent' }, () =>
+      runCommand('lsblk', ['-no', 'PKNAME', '/dev/vdb1']),
+    );
 
     if (parent.exitCode !== 0 || parent.stdout.trim() !== 'vdb') {
       throw new Error('Docker storage does not map to the fixed T002 I/O device.');
@@ -588,7 +612,10 @@ export class DockerSandboxManager {
     const componentPaths = [runtimePath, ...GVISOR_COMPONENT_PATHS];
     const checksums = await Promise.all(
       componentPaths.map(async (componentPath) => {
-        const checksum = await runCommand('sha256sum', [componentPath]);
+        const checksum = await this.runFixedNative(
+          { kind: 'legacy-runtime-component-sha256', path: componentPath },
+          () => runCommand('sha256sum', [componentPath]),
+        );
 
         if (checksum.exitCode !== 0) {
           throw new Error('A required qdroid-runsc runtime component is unavailable.');
@@ -613,7 +640,10 @@ export class DockerSandboxManager {
     labels: Record<string, string>;
     os: string;
   }> {
-    const result = await runDocker(['image', 'inspect', this.options.image]);
+    const result = await this.runFixedNative(
+      { imageId: this.options.image, kind: 'legacy-image-inspect' },
+      () => runDocker(['image', 'inspect', this.options.image]),
+    );
     const parsed = JSON.parse(result.stdout) as unknown;
 
     if (!Array.isArray(parsed) || parsed.length !== 1 || !isRecord(parsed[0])) {
@@ -642,12 +672,43 @@ export class DockerSandboxManager {
     };
   }
 
+  private async runFixedNative(
+    intent: FixedNativeIntent,
+    fallback: () => Promise<{
+      exitCode: number;
+      outputLimited: boolean;
+      stderr: string;
+      stdout: string;
+    }>,
+  ): Promise<{ exitCode: number; outputLimited: boolean; stderr: string; stdout: string }> {
+    if (this.options.resources === undefined) {
+      return fallback();
+    }
+
+    const command = await this.options.resources.native(intent);
+    const result = await command.completion;
+    if (!result.cleanupConfirmed) {
+      throw new Error('A managed legacy qualification command has unresolved cleanup.');
+    }
+    return {
+      exitCode: result.exitCode,
+      outputLimited: false,
+      stderr: result.stderr,
+      stdout: result.stdout,
+    };
+  }
+
   /**
    * The manager owns every Docker argument, but qualification also inspects a
    * created container. This catches a Docker/runtime translation that does not
    * materialize the intended profile.
    */
   private async inspectFixedContainerProfile(image: string): Promise<void> {
+    if (this.options.resources !== undefined) {
+      await this.inspectManagedFixedContainerProfile(image);
+      return;
+    }
+
     const name = `profile-${randomUUID()}`;
     await this.createTaskContainer(
       name,
@@ -673,6 +734,53 @@ export class DockerSandboxManager {
       }
     } finally {
       await this.removeContainer(name);
+    }
+  }
+
+  private async inspectManagedFixedContainerProfile(image: string): Promise<void> {
+    const resources = this.options.resources;
+    if (resources === undefined) {
+      throw new Error('The managed fixed-profile inspector is unavailable.');
+    }
+
+    const probe = await resources.prepareProbe({
+      imageId: image,
+      kind: 'legacy-fixed-profile',
+      selection: { kind: 'configuration' },
+    });
+    let primaryFailure: Error | undefined;
+    try {
+      await probe.create();
+      const inspection = await probe.inspect({ kind: 'configuration' });
+      if (inspection.kind !== 'configuration' || !inspection.fixedProfileVerified) {
+        throw new Error('The created container does not match the fixed sandbox profile.');
+      }
+    } catch (error) {
+      primaryFailure = toError(
+        error,
+        'The managed fixed-profile container could not be inspected.',
+      );
+      throw primaryFailure;
+    } finally {
+      let cleanupFailure: Error | undefined;
+      try {
+        const cleanup = await probe.stopAndRemove();
+        if (!cleanup.cleanupConfirmed) {
+          throw new Error('The managed fixed-profile container cleanup was not confirmed.');
+        }
+      } catch (error) {
+        cleanupFailure = toError(error, 'The managed fixed-profile container cleanup failed.');
+      }
+
+      if (primaryFailure !== undefined && cleanupFailure !== undefined) {
+        throw new AggregateError(
+          [primaryFailure, cleanupFailure],
+          'The managed fixed-profile inspection and cleanup both failed.',
+        );
+      }
+      if (cleanupFailure !== undefined) {
+        throw cleanupFailure;
+      }
     }
   }
 
@@ -718,29 +826,34 @@ export class DockerSandboxManager {
   }
 
   private async runQualificationProbes(image: string): Promise<QualificationProbes> {
-    const canaryPath = `/tmp/qdroid-t002-canary-${randomUUID()}`;
-    const secretPath = `/tmp/qdroid-t002-secret-${randomUUID()}`;
-    const storePath = `/tmp/qdroid-t002-store-${randomUUID()}`;
+    const managedInputs = await this.createManagedLegacyHostInputs();
+    const canaryPath = managedInputs?.paths.canary ?? `/tmp/qdroid-t002-canary-${randomUUID()}`;
+    const secretPath = managedInputs?.paths.secret ?? `/tmp/qdroid-t002-secret-${randomUUID()}`;
+    const storePath = managedInputs?.paths.store ?? `/tmp/qdroid-t002-store-${randomUUID()}`;
     const canaryContents = 'qdroid-synthetic-canary';
     const secretContents = 'qdroid-synthetic-secret';
     const storeContents = 'qdroid-trusted-store';
-    await writeFile(canaryPath, canaryContents, { mode: 0o644 });
-    await chmod(canaryPath, 0o644);
-    await writeFile(secretPath, secretContents, { mode: 0o600 });
-    await chmod(secretPath, 0o600);
-    await writeFile(storePath, storeContents, { mode: 0o600 });
-    await chmod(storePath, 0o600);
-
-    const hostInputsAreReadable =
-      (await readFile(canaryPath, 'utf8')) === canaryContents &&
-      (await readFile(secretPath, 'utf8')) === secretContents &&
-      (await readFile(storePath, 'utf8')) === storeContents;
-
-    if (!hostInputsAreReadable) {
-      throw new Error('The host qualification inputs could not be read before qualification.');
+    if (managedInputs === undefined) {
+      await writeFile(canaryPath, canaryContents, { mode: 0o644 });
+      await chmod(canaryPath, 0o644);
+      await writeFile(secretPath, secretContents, { mode: 0o600 });
+      await chmod(secretPath, 0o600);
+      await writeFile(storePath, storeContents, { mode: 0o600 });
+      await chmod(storePath, 0o600);
     }
 
+    let probeFailure: Error | undefined;
     try {
+      const hostInputsAreReadable =
+        managedInputs === undefined
+          ? (await readFile(canaryPath, 'utf8')) === canaryContents &&
+            (await readFile(secretPath, 'utf8')) === secretContents &&
+            (await readFile(storePath, 'utf8')) === storeContents
+          : await managedInputs.assertUnchanged();
+      if (!hostInputsAreReadable) {
+        throw new Error('The host qualification inputs could not be read before qualification.');
+      }
+
       await this.inspectFixedContainerProfile(image);
       const filesystem = await this.runJsonProbe(
         'filesystem',
@@ -748,9 +861,11 @@ export class DockerSandboxManager {
         image,
       );
       const hostCanaryUnchanged =
-        (await readFile(canaryPath, 'utf8')) === canaryContents &&
-        (await readFile(secretPath, 'utf8')) === secretContents &&
-        (await readFile(storePath, 'utf8')) === storeContents;
+        managedInputs === undefined
+          ? (await readFile(canaryPath, 'utf8')) === canaryContents &&
+            (await readFile(secretPath, 'utf8')) === secretContents &&
+            (await readFile(storePath, 'utf8')) === storeContents
+          : await managedInputs.assertUnchanged();
       const scratchFirst = await this.runJsonProbe('scratch-write', ['isolation-marker'], image);
       const scratchSecond = await this.runJsonProbe('scratch-read', ['isolation-marker'], image);
       const network = await this.runNetworkProbe(image);
@@ -877,13 +992,49 @@ export class DockerSandboxManager {
           enospc: scratchEnospc,
         },
       };
+    } catch (error) {
+      probeFailure = error instanceof Error ? error : new Error('The qualification probes failed.');
+      throw error;
     } finally {
-      await Promise.all([
-        rm(canaryPath, { force: true }),
-        rm(secretPath, { force: true }),
-        rm(storePath, { force: true }),
-      ]);
+      let cleanupFailure: Error | undefined;
+      try {
+        if (managedInputs === undefined) {
+          await Promise.all([
+            rm(canaryPath, { force: true }),
+            rm(secretPath, { force: true }),
+            rm(storePath, { force: true }),
+          ]);
+        } else {
+          const cleanup = await managedInputs.dispose();
+          if (!cleanup.cleanupConfirmed) {
+            throw new Error('The managed legacy qualification input cleanup was not confirmed.');
+          }
+        }
+      } catch (error) {
+        cleanupFailure =
+          error instanceof Error
+            ? error
+            : new Error('The legacy qualification input cleanup failed.');
+      }
+
+      if (cleanupFailure !== undefined && probeFailure !== undefined) {
+        throw new AggregateError(
+          [probeFailure, cleanupFailure],
+          'The qualification probes and managed input cleanup both failed.',
+        );
+      }
+      if (cleanupFailure !== undefined) {
+        throw cleanupFailure;
+      }
     }
+  }
+
+  private async createManagedLegacyHostInputs(): Promise<LegacyHostInputFixture | undefined> {
+    if (this.options.resources === undefined) {
+      return undefined;
+    }
+
+    return this.options.resources.createFixture({ kind: 'legacy-host-inputs' });
   }
 
   private async runHostMeasuredCpuProbe(image: string): Promise<QualificationProbes['cpu']> {
@@ -1060,6 +1211,11 @@ export class DockerSandboxManager {
     controlTargetReceipts: NetworkControlReceipts;
     controlTargetReceivedPackets: number;
   }> {
+    const resources = this.options.resources;
+    if (resources !== undefined) {
+      return this.runManagedNetworkProbe(resources, image);
+    }
+
     const target = await SyntheticNetworkTarget.create();
 
     try {
@@ -1084,7 +1240,175 @@ export class DockerSandboxManager {
     }
   }
 
+  /**
+   * The installer-owned route never creates the legacy target directly. Its
+   * opaque control keeper owns every listener and emits the only trusted
+   * target facts used to configure the fixed network probe.
+   */
+  private async runManagedNetworkProbe(
+    resources: RuntimeResourceOps,
+    image: string,
+  ): Promise<{
+    controlTargetReachable: boolean;
+    controlTargetReceipts: NetworkControlReceipts;
+    controlTargetReceivedPackets: number;
+  }> {
+    const controls = await resources.createNetworkControls('legacy');
+    let probe: OwnedProbe | undefined;
+    let primaryFailure: Error | undefined;
+
+    try {
+      await controls.assertHealthy();
+      await controls.assertPositiveControls();
+      await controls.assertHealthy();
+      await controls.resetReceipts();
+
+      probe = await resources.prepareProbe({
+        imageId: image,
+        kind: 'legacy-fixed-profile',
+        selection: { controls, kind: 'network' },
+      });
+      await probe.create();
+      await this.assertManagedNetworkProbeBinding(probe, image);
+
+      const execution = await probe.start();
+      const result = await this.readManagedNetworkProbeResult(execution);
+      if (result.attempted !== 4) {
+        throw new Error('The managed network probe did not attempt every fixed control target.');
+      }
+
+      await controls.assertHealthy();
+      const receipts = await controls.snapshot();
+      if (
+        receipts.settled !== true ||
+        receipts.tcpIpv4 !== false ||
+        receipts.tcpIpv6 !== false ||
+        receipts.udpDns !== false ||
+        receipts.udpIpv4 !== false
+      ) {
+        throw new Error('The managed network probe reached a fixed control target.');
+      }
+
+      // Positive controls complete only after the keeper observes each of its
+      // four original legacy receipts. The measurement snapshot above is
+      // intentionally separate and records the four negative attempts.
+      return {
+        controlTargetReachable: true,
+        controlTargetReceipts: {
+          dnsUdp: true,
+          ipv6Tcp: true,
+          tcpIpv4: true,
+          udpIpv4: true,
+        },
+        controlTargetReceivedPackets: 0,
+      };
+    } catch (error) {
+      primaryFailure = toError(error, 'The managed network qualification probe failed.');
+      throw primaryFailure;
+    } finally {
+      const cleanupFailures: Error[] = [];
+      if (probe !== undefined) {
+        try {
+          const cleanup = await probe.stopAndRemove();
+          if (!cleanup.cleanupConfirmed || cleanup.status !== 'confirmed') {
+            cleanupFailures.push(new Error('The managed network probe cleanup was not confirmed.'));
+          }
+        } catch (error) {
+          cleanupFailures.push(toError(error, 'The managed network probe cleanup failed.'));
+        }
+      }
+
+      try {
+        const cleanup = await controls.dispose();
+        if (!cleanup.cleanupConfirmed || cleanup.status !== 'confirmed') {
+          cleanupFailures.push(
+            new Error('The managed legacy network control cleanup was not confirmed.'),
+          );
+        }
+      } catch (error) {
+        cleanupFailures.push(toError(error, 'The managed legacy network control cleanup failed.'));
+      }
+
+      if (primaryFailure !== undefined && cleanupFailures.length > 0) {
+        throw new AggregateError(
+          [primaryFailure, ...cleanupFailures],
+          'The managed network probe and cleanup both failed.',
+        );
+      }
+      if (primaryFailure === undefined && cleanupFailures.length > 0) {
+        throw cleanupFailures.length === 1
+          ? cleanupFailures[0]
+          : new AggregateError(
+              cleanupFailures,
+              'The managed network probe cleanup did not settle.',
+            );
+      }
+    }
+  }
+
+  private async assertManagedNetworkProbeBinding(probe: OwnedProbe, image: string): Promise<void> {
+    const inspection = await probe.inspect({ kind: 'configuration' });
+    if (
+      inspection.kind !== 'configuration' ||
+      inspection.fixedProfileVerified !== true ||
+      !/^[a-f0-9]{64}$/i.test(inspection.binding.fullId) ||
+      inspection.binding.imageId !== image ||
+      Object.keys(inspection.binding.labels).length === 0
+    ) {
+      throw new Error('The managed network probe did not retain its exact container binding.');
+    }
+  }
+
+  private async readManagedNetworkProbeResult(
+    execution: OwnedProbeExecution,
+  ): Promise<Record<string, ProbeValue>> {
+    const stdout = collectManagedProbeOutput(execution.stdout);
+    const stderr = collectManagedProbeOutput(execution.stderr);
+    let primaryFailure: Error | undefined;
+
+    try {
+      await execution.closeInput();
+      const completion = await execution.completion;
+      if (completion.reason !== 'completed' || completion.exitCode !== 0) {
+        throw new Error('The managed network probe did not complete successfully.');
+      }
+
+      const [stdoutText] = await Promise.all([stdout, stderr]);
+      const parsed = JSON.parse(stdoutText) as unknown;
+      if (!isRecord(parsed)) {
+        throw new Error('The managed network probe did not return a JSON object.');
+      }
+      return parsed as Record<string, ProbeValue>;
+    } catch (error) {
+      primaryFailure = toError(error, 'The managed network probe failed.');
+      throw primaryFailure;
+    } finally {
+      const settled = await Promise.allSettled([stdout, stderr]);
+      const streamFailures = settled.flatMap((result) =>
+        result.status === 'rejected'
+          ? [toError(result.reason, 'The managed network probe output stream failed.')]
+          : [],
+      );
+      if (primaryFailure !== undefined && streamFailures.length > 0) {
+        throw new AggregateError(
+          [primaryFailure, ...streamFailures],
+          'The managed network probe and output streams both failed.',
+        );
+      }
+      if (primaryFailure === undefined && streamFailures.length > 0) {
+        throw streamFailures.length === 1
+          ? streamFailures[0]
+          : new AggregateError(streamFailures, 'The managed network probe output streams failed.');
+      }
+    }
+  }
+
   private async createQualificationIoFile(): Promise<QualificationIoMount> {
+    const managedFixture = await this.createManagedLegacyIoFile();
+    if (managedFixture !== undefined) {
+      return managedFixture;
+    }
+
     const root = await this.verifyQualificationIoRoot();
     const sourcePath = join(root, `io-${randomUUID()}.bin`);
     const file = await open(sourcePath, 'wx', 0o644);
@@ -1132,6 +1456,26 @@ export class DockerSandboxManager {
       },
       sourcePath,
       targetPath: IO_QUALIFICATION_CONTAINER_PATH,
+    };
+  }
+
+  private async createManagedLegacyIoFile(): Promise<QualificationIoMount | undefined> {
+    if (this.options.resources === undefined) {
+      return undefined;
+    }
+
+    const fixture = await this.options.resources.createFixture({ kind: 'legacy-io-file' });
+    return {
+      dispose: async () => {
+        const cleanup = await fixture.dispose();
+        if (!cleanup.cleanupConfirmed) {
+          throw new Error(
+            'The managed legacy I/O qualification fixture cleanup was not confirmed.',
+          );
+        }
+      },
+      sourcePath: fixture.sourcePath,
+      targetPath: fixture.targetPath,
     };
   }
 
@@ -2277,6 +2621,20 @@ function isConfirmedContainerAbsence(
 
 function toError(error: unknown, fallbackMessage: string): Error {
   return error instanceof Error ? error : new Error(fallbackMessage);
+}
+
+async function collectManagedProbeOutput(stream: AsyncIterable<Uint8Array>): Promise<string> {
+  const chunks: Buffer[] = [];
+  let byteLength = 0;
+  for await (const chunk of stream) {
+    const bytes = Buffer.from(chunk);
+    byteLength += bytes.byteLength;
+    if (byteLength > MAX_STDIO_FRAME_BYTES) {
+      throw new Error('The managed network probe exceeded its bounded output allowance.');
+    }
+    chunks.push(bytes);
+  }
+  return Buffer.concat(chunks).toString('utf8');
 }
 
 async function runCommand(

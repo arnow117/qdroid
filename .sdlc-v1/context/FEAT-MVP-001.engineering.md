@@ -2,6 +2,40 @@
 
 ## 当前有效方案
 
+T005 当前整合决定：依赖图 package-runtime 单元已在 host/Mock 范围接受，
+实际生产 OCI、控制进程恢复和最终 Linux 验收仍未完成。当前唯一实施方案是
+[T005 构建/恢复计划](../../planner/t005-build-serialization.md)，含 Graph unit
+acceptance and production ownership return；SHA
+`4a4d01d5b940d5d29f303b7b091dcd21bc0afe8cde5ece8b0fd6de556565f76d`。
+主 Agent 已核对并将三个接受文件整合到工作树，将 package-runtime 与安装/graph 测试明确交回
+原生产实现者；独立 graph 单元不再持有写权限。原生产实现者继续独占 runtime-oci、
+guardian 和专用 VM，完整 T005 验收范围及已使用的诊断额度不变。生产工厂暂不声明
+`supportsGraphMaterialV1`。此整合不代表当前生产工作树构建通过或 Task 完成。
+
+跨会话接续入口为[恢复检查点](../checkpoints/FEAT-MVP-001.md)。2026-10-30 用户明确
+授权把当前未验收进度提交并推送到独立 WIP 分支。此授权只保存源码、测试、规划和接续
+记录，不接受 T005、不恢复已停止的网络实现、不重置诊断额度，也不发布产品。所有旧
+实现和评审 Agent 均已完成/停止，没有在途写入者；下一会话须重新分配实现所有权。
+
+分支登记迁移的预先决定：在实际 Git 根目录以当前 HEAD
+`a3973e56d442e75361946eb26fc2e3b8b494882b` 创建并检出
+`codex/t005-wip-20261030`，保留默认远端 `codex/project-foundation` 的已验收基线。
+同一根目录执行 `lifecycle_state.py --repo . migrate-feature-branch`，完整操作参数为
+`--feature-id FEAT-MVP-001 --expected-branch codex/project-foundation --branch codex/t005-wip-20261030 --expected-head a3973e56d442e75361946eb26fc2e3b8b494882b --reason save-unaccepted-T005-for-clone-handoff`。
+只迁移本 Feature 的开发位置，不改变 Task/validation/review/release 状态。私有运行数据、
+原始证据、专用 VM 和镜像不进入 Git；新环境不能继承原环境的资格结论。
+
+登记迁移实际结果：lifecycle CLI 于 `2026-10-30T06:54:02Z` 返回成功，核对实际根目录、
+附着分支和完整基线 HEAD；`FEAT-MVP-001.branch` 从 `codex/project-foundation`
+改为 `codex/t005-wip-20261030`。T001–T004 done、T005 in_progress、其余 todo
+及 pending validation/review/release 均保留，没有以 WIP 保存代替任何验收。
+
+WIP 保存检查：当前整树在固定 Node24.16.0 下 `npm run lint`、
+`npm run format:check` 均 exit0；README/TRACKING/工程上下文/40行检查点的
+单独 Prettier 检查及 `git diff --check` 均 exit0。候选源码为 regular UTF-8 文件，
+定向凭据/个人主目录模式扫描无命中。此次没有重跑 Linux 或整任务测试，不借备份
+解除网络停止，也不宣称全树功能/崩溃恢复已验证。
+
 ### 架构设计
 
 **关联产品上下文**：[REQ-MVP-001](REQ-MVP-001.product.md)
@@ -893,12 +927,35 @@ Same Terra implementer, writes limited to this existing crash-recovery fixture a
 
 #### T005 — 固定包、安全解包与无凭据构建安装
 
+当前 graph 安装器接口采用已独立复核的
+[executable-graph unit contract](../../planner/t005-executable-graph-unit.md)
+（SHA256 `13d11ccaead7d3d03470450dec304fb7bf1fe1d090b37d52719b0bf47031628a`）。
+独立单元已完成 package-runtime 的可执行依赖图编排、材料保留、opaque graph
+输入和原记录只读复用，使用实际 filesystem/SQLite 与可信 Mock runtime port，
+在精确 121-source overlay 上通过 host 累计（214 pass、0 fail、16 Linux skip）
+和独立修正复审。主 Agent 已核对并合入三个所属文件，明确将 package-runtime
+与 installer/graph 测试交回原 producer；独立单元不再持有写权限。
+原 producer 继续负责 ResourceOps/guardian/assembler/executor、全部专用 VM 与最终集成。
+既有 BuildSession/recovery/publication/retirement 原语行为不变。
+可信 factory 必须显式支持新材料版本才允许 executable graph 在任何持久/运行副作用前
+进入；默认 production 保持拒绝，实际 graph copy/recovery 完成后才能声明支持。
+单元采用固定 v97 基础加专属及已接受兼容修正 overlay 验证；组件通过不代替
+同一完整输入的 Linux/CLI/崩溃恢复验收。全部失败与已用诊断额度继续保留。
+
+主机累计中已定位的旧断言、迟挂 rejection assertion 与非原子 JSON checkpoint
+已由原 producer 完成最小修正，并独立复审；graph worker 未获得这些文件的写权限。当前
+[构建串行契约](../../planner/t005-build-serialization.md) 的 Host regression assets
+alignment 允许原 producer 提供精确、最多四文件的 v97 兼容修正 overlay，避免读入
+控制实现的在途源码。graph 单元已在 v97＋专属实现＋该兼容修正的同一冻结输入上，
+记录完整真实 pre/post manifest 并通过静态、构建和全量 host 累计；原失败记录保留。
+这些是验证资产与方法修正，不改变产品权限、期限、unknown 或不重放语义。
+
 - **故事 / milestone**：US-05，M1；**依赖**：T004。**覆盖**：REQ-002、003；AC-07、08的暂存/构建/重复安装部分。
 - **代码写范围**：`packages/package-runtime/`fetch/stage/schema/lock/build/disabled-registry，`packages/contracts/`包schema，`fixtures/packages/`、`tests/packages/install/`、`docs/USAGE.md`。
 - **交付**：按明确平台/source/digest解析固定内容，安全暂存/冻结与依赖构建，注册installed-disabled；不自动grant/启动。fetch/build使用受限服务和已批准registry，许可/provenance随产物记录。
 - **完成条件**：遍历/链接/可变路径竞态/设备文件/模式/重复路径/炸弹、缺引用/重复key/未知runtime字段、digest/platform/version错均拒绝；build无账号/模型/robot秘密，不在可信host执行hook；重复digest不重复注册实例/grant，失败不动当前版本。
 - **验证环境 / 方法**：真实Linux build profile + 本地/隔离registry fixture；对恶意archive、构建窃密/出网、中断各跑固定用例，核对包根外canary、registry、临时资源和旧版本。
-- **授权 / 设备前置**：后续Build/registry访问许可，无设备/真实账号。**usage**：USE-003的manifest请求、lock来源、installed-disabled与失败处理。
+- **授权 / 设备前置**：SRC-09 已覆盖本 Task 的本地/专用 VM 实施、依赖、registry 和受控验证；无设备/真实账号。**usage**：USE-003的manifest请求、lock来源、installed-disabled与失败处理。
 
 ##### T005 实施输入与复用决定（2026-10-26；T004 接受后执行）
 
@@ -929,6 +986,327 @@ The private BuildAuthority SQLite exclusion spans the entire continuous session.
 
 Add the real preflight crash boundary to the already required cross-process/cross-image build serialization, legacy/profile resource crash cases, unknown-owner prevention and same-final-image two-candidate publication tests. Preserve previous malicious-content/build-output/idempotence and all applicable host/Linux regression checks. Same complete T005 Terra implementer owns implementation, necessary verification and corrections; main owns state/Git/acceptance, and a separate Sol context reviews actual code. The historical T004 failures and used diagnosis allowances do not reset; T005's distinct acceptance objective has its own observed implementation history. No new permission is required within the current local/simulator/Mock authorization.
 
+##### Effective T005 ResourceOps API choice (supersedes, 2026-10-29 +08)
+
+The first executable-adapter draft duplicated raw Docker create/start with its own flags and did not qualify through T004. Primary rejected that production path; the same implementer removed it before any executable VM test. Copy-only assembler tests are separate and do not establish package build isolation. The implementer then returned the real gap: accepted OciSandboxBackend has one immutable image per constructor and no production resource dependency; its managed legacy/profile qualifier resources must be integrated before executable installation can run. This is an implementation prerequisite within the original T005 scope, not a new permission or a reason to weaken isolation.
+
+Primary accepts the independent source mapping and chooses the concrete private interface in [Accepted internal ResourceOps implementation choice](../../planner/t005-build-serialization.md#accepted-internal-resourceops-implementation-choice). Inject the same BuildSession.resources explicitly through OciSandboxBackend, cached DockerSandboxManager, all legacy/profile resource helpers and post-qualification fingerprint. Fixed native intents, prepared probe handles, fixture/control handles and an async production network factory own actual side effects and raw settlement. Extend/reuse the existing guardian with fixed native/probe control modes and create-only/inspect/start separation; no generic executable/argv IPC relay, backend proxy, global ambient context or test-hook ownership. All managed creates need real close-success receipt plus full ID/image/labels; uncertain bootstrap/native/create/mutation retains session/resources. Persistent control stores/keys/SQLite evidence are distinct from probe scratch; parent-owned sockets/FDs recover by actual owner exit, not port/PID-derived deletion. Existing T002/T003 default fixture path and public SandboxBackend/weak handle ownership remain compatible; installer requires managed resources and cannot fall back.
+
+The trusted copy-only assembler explicitly selects purpose builder or runtime from the frozen approved catalog snapshot. Build frozen source/dependencies into the builder candidate image first, qualify that exact image, then create/execute/stop through the same T004 backend under its unchanged build-restricted limits. Final runtime assembly uses validated output and the same fixed directory template. Retain sealed builder/runtime images and receipts under finite storage admission; no candidate GC. Keep the current backend environment whitelist: fixed HOME/PATH belongs to trusted builder image/template configuration, while execution supplies only approved locale/timezone/QDROID fields. Guest cwd is the fixed image source directory, never a host staging path.
+
+This section supersedes only the prior delegation of exact production ResourceOps/API choices and the rejected raw-executor implementation method. The settled archive/schema/resolver/registry/digest/image-retention semantics, all original acceptance and failure history remain. Same T005 Terra worker owns implementation, necessary tests and corrections; primary owns current Plan/state/Git/acceptance. Continue across this resolved internal blocker without a user-approval request. Complete supersedes brief must carry these choices and the original scope/verification before runtime implementation resumes. No execution or cleanup qualification is claimed from this design decision.
+
+##### Effective T005 package publication corrections (supersedes, 2026-10-29 +08)
+
+Independent read-only actual-source review froze six inputs (manifest SHA `5efcf24d4bad4500bdcd555955c0a469e6b8b3b3e627637cab07c29030af1a8b`; package index `e12c1cc4965ecbc22dbc7697617be3c4a453595ece07b9b3bc1a0d4896f9fcf7`, archive `6abee7c7aca8cd24edf03bc0ae22e742dab717b3c4c01b2522ade01a8862e799`) and found six concrete P2s in implemented paths. Primary accepts these findings. They supersede the deficient implementation methods below, while preserving the complete original T005 scope, settled ResourceOps choice, boundaries, required Linux/primary/review acceptance and all failure history. Same Terra implementer owns the entire Task and corrections; root owns this effective Plan, state and Git. No new diagnosis window or permission is introduced.
+
+1. BuildAuthority checks retained sessions after acquiring its physical `BEGIN IMMEDIATE` exclusion and before publishing the new intent or starting any effect. An optional earlier check is only a fast rejection. Cover the actual interleaving: B's precheck sees empty; A leaves cleanup-unknown and releases the SQL lease; B then acquires and must reject without a new build.
+2. Materialize, freeze and fsync every file and directory entry in a private owned tree before atomically publishing its reusable content name, then fsync the publication parent. Only a precisely recognized destination-already-exists race may verify and reuse a fully sealed existing tree; chmod/fsync failures remain failures. A rename success cannot turn a subsequent sealing failure into successful publication. Preserve existing committed data on all failures; no automatic repair/replacement of committed corrupt content.
+3. Persist the trusted full input and materialized-tree inventories bound to the package identity. On committed reuse, recursively verify all expected files and explicit/implicit directories, exact bytes/type, normalized executable distinction and absence of extras/links/aliases. The materialized-tree inventory accounts for implicit ancestors separately without silently changing the specified archive/package identity. Missing/corrupt/type/mode-conflicting committed content rejects. Verify the exact retained runtime image is still present and matches its trusted receipt; missing image rejects rather than rebuilds.
+4. Before the atomic disabled registry transaction, durably seal full resolved-lock selection, complete validated generated content/inventory and actual builder/runtime assembly receipts, not only their digests. Registry/candidate records bind immutable material references and digests. Retain these referenced materials and sealed images on unknown cleanup/crash. Cleanup removes only precisely owned, proven-unreferenced temporary scratch, never an unconditional candidate tree still referenced by unknown resources or committed metadata. A narrow trusted assembler verification operation may validate a sealed receipt (exact image ID/platform/config/labels and approved catalog selection); it cannot build/run/fetch/delete or grant authority. Any native inspection uses the same managed resources/session and exclusion; even a reuse check creates no workload, instance or grant.
+5. Archive alias validation maintains one spelling for every explicit and implicit directory component. Reject `Assets/` plus `assets/x`, and `A/x` plus `a/y`. A parent appearing after descendants with the identical spelling remains valid.
+6. The versioned canonical build-input representation uses explicit JSON `null` for an absent build declaration. Accept a valid executable variant with no build, assemble frozen content without invoking the build executor, and cover its stable identity/reuse. This is an unaccepted format and does not authorize altering committed records.
+
+Required corrections include targeted causal regressions for all six, real independent-process exclusion interleaving, injected sealing failures and complete inventory corruption cases, persistence/crash recovery of outputs/receipts and no-build assembler-only integration. Runtime work continues under the already settled production ResourceOps contract; no raw Docker executor or weaker qualification is allowed. Independent source review here ran no tests or VM and is not final acceptance. Original final cumulative/Linux/crash/publication/USE-003/primary integration and final independent review remain required.
+
+##### Effective T005 publication delta corrections (supersedes, 2026-10-29 +08)
+
+The same independent reviewer checked eleven frozen v2-package inputs, manifest `85424ff57ad265fcfc8be57d469a4015395ea4eebee034b81b95da51d64977ed` (11/11 matched; index `e738800ce3379e20a7748bba984f4634f37f30554e702ba5e51c567b8fb1750e`). Primary accepts the observed source localization: original in-lock session check, complete tree validation, implicit ancestor spelling and no-build canonicalization are implemented; persistence/reuse ordering has five remaining concrete P2s. This is an evidence-backed correction of the same segment, with actual closure and new causal findings, not a reset of attempts/history or another diagnosis. Worker reports focused29/29, but primary has not independently read/bound its raw execution evidence. No Linux acceptance or T005 done/commit request.
+
+- Both fresh publication and reuse require the complete sealed input inventory AND materialized inventory/readiness record. Current code writes the materialized marker before input inventory and existing-content reuse checks only the first; a crash can therefore register a missing inputInventoryPath. Publish one final readiness condition only after all necessary immutable records and directory syncs exist; validate every prerequisite on reuse.
+- Persist the parent directory entry for every newly created hierarchy before registry commit, including the parent of candidate seal directories and new content/generated parents. File sync plus sync of only the innermost directory is insufficient. A durable mkdir helper or pre-persisted hierarchy is a routine implementation choice; tests must observe all required ordering and failure behavior without treating injected failure as success.
+- Executable committed reuse acquires the same BuildAuthority exclusion and durable managed session before any native retained-image inspection. It cannot bypass retained unknown sessions or start native work outside the recorded owner. Content-only reuse requires no native inspection. Reuse creates no workload, instance, grant or build.
+- Registry idempotence compares immutable semantic identities (package, build-input, resolved-lock, validated build-output), not candidate-specific absolute material/receipt paths or a newly produced image ID. Identical semantic publication verifies and returns the first committed record and its original immutable references/image; it never overwrites them. Candidate IDs, receipt storage paths and nondeterministic commit IDs do not create an output conflict. Different validated output remains a conflict. Native/material verification must finish under the managed owner; the short registry transaction must not await native I/O. Retain loser sealed images/receipts under the existing no-auto-GC rule.
+- Reuse a fully sealed generated tree with the same package/output identity after validating its complete expected tree, bytes, type/modes and inventory. The current unconditional existing-directory error breaks valid interleaved publication and explicit retry after abandoned-candidate cleanup. Missing/corrupt/incomplete material still rejects and is not silently repaired. Fresh recovery stays cleanup-only, without replay; an explicitly new installation after confirmed cleanup is distinct from automatic recovery replay. Preserve references/unknown evidence and do not retire the session merely because the directory already exists.
+
+Same worker implements corrections with targeted readiness-boundary failure, ancestor-directory durability, executable-reuse exclusion, real independent publication interleavings and sealed-output reuse regressions, then all original remaining Task checks. This supersedes only the deficient v2 publication methods; the complete ResourceOps/guardian/session design, raw-settlement ownership, final Linux/cumulative/crash/USE-003/review/primary acceptance and authorization remain unchanged. Complete correction brief follows this effective update.
+
+##### Effective T005 native ownership and session binding corrections (supersedes, 2026-10-29 +08)
+
+Primary actual-source concurrency analysis of the first native-only ManagedRuntimeResourceOps implementation finds two concrete ownership defects before any executable VM run: native() forks a guardian before recording its per-resource intent; parallel append/update operations persist different whole-journal snapshots without serialization, so a late older rename can remove a newer resource from durable evidence. The newly created journal also overwrites an existing same-session path. These are source-localized corrections of the original identity-before-effect/raw-settlement contract, not a new diagnostic allowance. Native-only host tests and deliberately unsupported probe methods do not establish complete production coverage.
+
+- Persist an authenticated per-resource bootstrap intent with session/owner/current-boot binding and a fresh resource nonce BEFORE fork. Then observe errors immediately and persist actual guardian boot/PID/start/group identity before authorization. Uncertain bootstrap retains its intent; no unreported-child absence inference. Initial create must be exclusive and preserve existing/future/malformed records; recovery opens authenticated existing evidence through a distinct cleanup-only path.
+- Serialize session journal mutations, or use equivalent individually durable resource records with ordered ownership updates. Register actual raw filesystem/native settlement, not merely the Promise returned to a bounded caller. A late stale snapshot cannot overwrite newer resources or recreate a retired journal. Begin close by sealing admission to new operations; wait for all in-flight mutation settlement and actual owned-process/group cleanup before final retirement. Timeout/cancel/unknown retains durable evidence and BuildAuthority exclusion. Reuse the accepted RecoveryLeaseMutations discipline; no blind async after-release writes.
+- Bind runtime dependencies to the actual current BuildAuthority session. Static options containing a preconstructed assembler/executor must not make one resource owner span unrelated candidates or execute before lease acquisition. Use one narrow trusted runtime factory invoked only AFTER physical exclusion and durable session intent. It receives the actual opaque host-created BuildSession ownership object, returns that session's assembler/executor/managed-resource lifecycle, and is reused for builder assembly, qualification, post-qualification fingerprint, build, runtime assembly and executable retained-image verification. Package-runtime depends on this port, not on a runtime-oci implementation. A read-only host-generated session identity/private store accessor and mutation-settlement ownership methods are permitted; never expose raw SQL, signing keys, caller-minted resource rights or a generic exec transport to workloads. Private type/factory names are routine choices; session affinity and all-effects coverage are mandatory.
+- Retire the build session only after its returned runtime owner has sealed operations, proved cleanup and settled all mutations. A boolean marker such as managesResources is not evidence of actual ownership. Existing Mock adapters may be explicitly test-only and cannot satisfy production creation. Factory/constructor failure before a runtime handle returns must still leave its intents owned and retained. Executable reuse uses its own acquired session/factory without any build, workload, instance or grant; content-only behavior remains host file validation only.
+
+Same Terra implementer continues the complete original Task, covering the new concrete bootstrap, stale-write/close race, exclusive-create and session-affinity regressions, plus all pending probe/fixture/network/assembly ownership and original actual Linux/crash/cumulative/USE-003/final-review/primary acceptance. No fallback or additional permission. This supersedes the unsafe initial native journaling and preconstructed-adapter production wiring methods only; all accepted package publication corrections and prior failure history remain.
+
+##### Effective T005 durability and winner validation correction (supersedes, 2026-10-29 +08)
+
+The same reviewer verified eleven v3 snapshot inputs, manifest `7380ab9e597cce1a91c9b8c50184680a1dc230c64b59bcfda4d99842f25fc241`; only package index (`321bf3110fdc69e940e54dbc46ffa3778d031a8dbcab5644d332395a39dc78f2`) and installer tests changed. Executable-reuse lease ordering and complete same-output generated-tree reuse are now implemented in the package path. Three source-localized P2s remain: readiness can be observed between chmod and final file sync; existing ancestor directories bypass parent fsync; a semantic winner is returned without validating its original material/image. Primary accepts these findings and selects the following concrete durability/order protocol; no extra marker-only fix or assumption that another writer's file existence proves sync.
+
+1. Finalize immutable readiness/metadata bytes AND mode on the private temporary file and fsync that file before rename. The publisher syncs its parent before returning. Every reuse/adoption path independently validates ALL complete prerequisites, including full input inventory (also in the rename-conflict branch), materialized inventory/tree and final ready bytes/mode; sync the observed immutable files and directory entries needed for publication. A reader's own successful synchronization may establish durability; it cannot rely on another still-running writer having done so. Keep inode/path binding stable across verification/sync or reject/retry within a finite bound if it changes. Original writer failure remains failure; committed material is never silently repaired/replaced.
+2. Verify/sync every required ancestor directory entry toward the configured trusted root (including the root entry if it was created), even when mkdir says already existed. Another writer may have created it but not synchronized its parent. Precreate-and-sync or an unconditional durable-chain helper is permitted; no existence-based shortcut. Sync failure prevents registry publication.
+3. Keep the physical executable BuildAuthority/session and its managed runtime owner through the short registry publication and any winner-material verification. Before creating a NEW record, candidate material is already fully verified/sealed. The short registry transaction returns whether it inserted a new record or selected the existing semantic winner; it does not await filesystem/native I/O. For an existing winner, outside that transaction but still under the same managed owner/exclusion, verify the winner's ORIGINAL full input/generated/lock/receipt references and exact retained image, then return them. Do not validate only the losing candidate. On failure reject without modifying the winner; retain candidate/unknown material and all sealed images as required. Content-only winner validation has no native process. Retire session/release only after the owner's actual cleanup and mutation-settlement rules.
+
+Same worker adds deterministic in-flight final-sync/adoption, existing-ancestor pre-sync failure and actual winner publication/corruption interleaving regressions; deleting a test registry cannot substitute for abandoned-session recovery or independent publication evidence. The package readiness, directory and winner fixes are the same delivery segment with observed closures/new causal evidence, not a reset or a new diagnosis. All complete production ResourceOps/factory/bootstrap/mutation corrections and original Task acceptance remain pending where not yet proven. Review itself ran no tests/VM, and15/15 was only a focused worker report. Complete supersedes brief follows this Plan update.
+
+##### Effective T005 owner lifetime and adoption correction (supersedes, 2026-10-29 +08)
+
+The independent v4 review verified seventeen inputs, manifest `00be2d002d9030e9c602eca72a53046e3dca6de857e6c66c28bafd0490e5c088`; package source `45e3f47ec108e1048ef9b329e31891da7b946b0a7568ef84079df2822d3c0938`. Ancestor syncing and winner verification ordering are now implemented in source. Native bootstrap-before-fork, exclusive initial creation and serialized journal mutation are implemented, but review found five concrete remaining P2s. Primary accepts them; unfinished full probe/network/assembly/HMAC/recovery coverage remains separate pending original work, not a new finding.
+
+1. Normal material adoption still only reads metadata; the existing-file sync helper covers write collisions alone. A ready hard-link can be observed before its parent's sync. Put verification plus independent synchronization in the COMMON adoption/readFrozenMetadata/full-tree validator paths, not only EEXIST. Observe actual immutable files through no-follow descriptors, verify expected bytes/type/final modes, sync those descriptors and every required directory chain, and preserve inode/path binding or reject a changed binding. Readiness existence and mode alone are not proof. This applies to every existing-content, rename-conflict, generated reuse, committed reuse and winner-material path.
+2. Creation mode is filtered by umask. Explicitly set the required final mode on each private temporary metadata inode before fsync and no-clobber publication. Validate before any new registry insert; restrictive umask must not produce a record that immediately rejects its own metadata. Likewise assign the normalized archive file modes explicitly rather than rely on open mode surviving umask; guest-readable payload permissions and private secret/control permissions remain distinct. Cover umask0077 in a separate test process without altering shared process state.
+3. A native operation must register its ENTIRE preparation/start/raw-settlement lifetime at method entry, before its first await/bootstrap mutation/fork. Close atomically seals new actions, waits those complete raw lifetimes, and blocks late authorization after every awaited identity publication. If already forked but not authorized, explicitly close that same idle guardian and observe its actual exit/group; identity-write failure cannot abandon the child. Mutation queues alone do not cover startup continuations.
+4. One unified session finalizer owns fresh success, known build failure, reuse failure and factory failure. Seal the runtime owner, settle all preparation/process/mutation work, preserve the primary operation error AND an independent cleanup error, retire only after confirmed cleanup, retain on unknown. A confirmed nonzero build failure may retire its fully cleaned session and still return the original failure; it must not leave a permanent unresolved intent. Physical lease release cannot cross in-flight raw persistence. If bounded caller return occurs before raw settlement, the internal owner keeps the actual lease until settlement rather than abandoning it. Failure before runtime handle return still drains tracked work and preserves unconfirmed intents.
+5. Primary selects a private WeakMap registration for actual host-created BuildSessionOwner objects, with active/closing/released state and tracked raw operation leases. Only BuildAuthority registers one; no JSON tuple or boolean can do so. Export narrow trusted-host helpers to assert active identity, begin an operation before effects, seal authorization and await raw settlement; no raw SQL/key or generic exec API. Factory creation and every new provider action verify that exact active owner. Raw completion/cleanup facts for already registered resources may finish while closing, without authorizing new actions. Release synchronously seals authority, awaits actual registered settlement, then invalidates owner state before dropping the SQL lease. Cached owners cannot recreate a factory/provider after retirement. Private names are implementation choices; same-address-space port dependency remains package-runtime to interface, runtime-oci to implementation.
+
+Production code must not export a test helper that registers arbitrary structural owner tuples without the actual BuildAuthority lease. A test-only name or comment cannot establish session affinity. Adapter tests obtain a real owner through a bounded installer/authority fixture; private registration remains reachable only from actual authority acquisition.
+
+Required regressions: non-collision adoption while publisher parent sync is paused/fails; restrictive-umask metadata/payload creation; native close during bootstrap/identity publication and identity-write failure after actual fork; original operation plus cleanup failure visibility; confirmed failed-build cleanup then fresh install; stale/forged/closing owner factory/resource calls; actual raw-write settlement before lease release. Use changed-input focused tests and the original final Linux/crash/cumulative/USE-003/independent-review/primary acceptance, no fallback or new permission.
+
+Nonconvergence accounting: v4 still leaves the ALREADY LOCALIZED normal-adoption synchronization path unsatisfied; do not describe that unchanged defect as fresh causal evidence or reset its history by the new helper/factory names. This is one unchanged correction in that adoption subproblem. A further consecutive correction with neither that acceptance condition nor genuinely new causal localization triggers the existing mandatory stop/report rule. Other verified closures and independent native-owner work may continue, but do not reset the affected segment. No T005 diagnosis allowance has been invoked by these ordinary read-only source reviews.
+
+Same complete T005 Terra implementer owns all corrections and full provider migration, while root owns this Plan/state/Git/acceptance. Existing local/simulator/Mock and dedicated-VM authorization remains; native-only Linux regressions are allowed before broad migration, while executable install/qualification through an incomplete provider remains prohibited. Complete supersedes brief follows.
+
+##### Effective T005 initialization seal and factory error correction (supersedes, 2026-10-29 +08)
+
+The independent reviewer verified frozen v5 inputs24/24 (`23bffbc5241d56f92b5a623e960e0f0d2962d830b25f884370dd174ef201b176`) and test supplement2/2 (`d1be0e7fc5cca583467519d0a69da5d06af8309fed3dd84ecbfb0ea705665652`). Normal adoption now independently synchronizes observed no-follow files and directory chains with finite inode/path rechecks; explicit final modes and the original native preparation/close race are closed in source. Arbitrary test registration is removed. This is genuine correction of the previously unchanged adoption path, so its prior nonconvergence history is preserved without triggering another unchanged attempt. The deterministic paused-publisher-parent-sync regression remains required. No T005 diagnosis allowance has been used.
+
+Primary accepts the remaining factory failure and initialization lifetime findings as the same Task's correction batch:
+
+1. Every factory/settlement failure exit, including executable reuse, must reach the unified finalizer. Preserve the original creation/verification error and any independent cleanup error; never throw from a settlement hook across the finalizer, and never convert a cleanup failure to a boolean that loses its cause. Primary inspected the subsequently frozen v6 delta (`169fa3ed548eb36690521898f6a32850ae7acb5df8234436874f89e1dd79c483`,25 files): reuse catches settlement failure into the aggregated primary failure before finalization, and the OCI factory awaits close and propagates its error. The same independent reviewer then verified25/25 and confirmed this source defect closed, with no new P1/P2 in that targeted delta. Direct fresh/reuse constructor-plus-close double-failure regressions are still required; existing new tests cover only fresh construction failure with successful close and retry. Review ran no tests/VM and does not establish full acceptance; do not redo this closed source control flow blindly.
+2. Seal the actual owner synchronously at the start of whole-session finalization, before awaiting cleanup or retiring the durable intent. Closing permits only completion facts and cleanup of already registered resources, not new factory/provider/native creation. Track the entire factory and resource-provider initialization before its first await/effect, including boot lookup, directory/journal writes and a handle not yet returned. On closing, an initializer may settle/clean its already owned effects but cannot authorize later creation or return a new usable runtime. Physical lease release waits for all actual registered preparation/mutation settlement; unknown resources retain their durable intent and references.
+3. Primary selects at most one production runtime and one root resource-provider initialization per actual owner. Enforce these claims in the real session registration shared across factory instances, not a per-factory cache or an arbitrary test registration path. A direct second provider/factory call cannot create a second unobserved owner while the first close/finalizer is running. Retain failed-initialization ownership until the same finalizer/cleanup-only recovery can establish its outcome; an absent returned handle is not a no-effect proof. The implementer may choose narrow helper names; do not introduce a generic component registry, new execution service, or workload-facing administration API.
+
+Required regressions: fresh and executable-reuse factory plus independent cleanup failures preserve both errors, invalidate the owner and release the SQL lease only after raw settlement while retaining unknown intent; held factory/provider initialization intersecting finalization cannot write or return a usable resource after retirement; direct/cross-factory duplicate initialization rejects; closing/released/forged owners reject all new actions; only registered completion/cleanup may finish while closing. Keep the original actual-init-failure-after-fork, adoption interleaving and full provider/qualifier/HMAC/recovery/assembly/current-input Linux/cumulative/USE-003/independent-review/primary acceptance requirements. The same Terra implementer owns this correction and all remaining T005 work under existing authorization; no new diagnostic window, permissions, state transition or acceptance is created.
+
+##### T005 v7 source closure and Linux fixture correction (2026-10-29 +08)
+
+Independent review verified v7 manifest `f7d60ca165e1abeb1cf0211233836262f96b854cc63b058a46fc5f9ad531500b`,25/25 files, only the six expected inputs changed. The owner initialization/closing production defect is closed in source: synchronous finalization seal; shared real-owner runtime/provider claims and tracked initialization before effects; active rechecks after awaits; retained failed-initialization ownership and raw settlement before SQL release. Fresh/reuse double-failure tests now preserve both causes and exercise owner invalidation and released physical lock with retained intent. No new production P1/P2 was found in this targeted delta. Host154pass/7skip remains worker-reported, not independently raw-bound final acceptance.
+
+Primary accepts two concrete fixture corrections in the same T005 implementation/verification boundary. The held-provider factory must await proof that provider initialization reached its intended `beforePersistInitial` barrier BEFORE throwing the outer failure; immediate throw currently seals the owner while provider is still in mkdir, so it rejects before that barrier. Observe the installation rejection immediately, and bound both barrier and finalization waits. The forged-owner case must keep all tuple/path values identical and change only object identity; changing resourceDirectory first triggers the unrelated tuple/path guard. Require the actual registration rejection and zero effects. Preserve any running failed job's evidence; only safely cancel its precisely identified test process if needed, never VM/Docker/shared services. Correct and rerun only the authorized native-only suite on changed frozen inputs before the eventual original full acceptance. These are new observed fixture causes, not another diagnosis allowance or a reason to rework the closed production logic. Full provider migration, paused-publisher regression and final T005 evidence remain pending.
+
+##### T005 v8 remaining bounded-fixture correction (2026-10-29 +08)
+
+Independent review verified v8 `cd012f1c9339c655da5f11b936d4ab71d76a76998e472ed1e6b62cada17ee87f`,25/25, only the Linux fixture changed. Forged-owner rejection and admission-before-outer-failure are corrected. Primary read native v7 raw logs, versions and explicit npm-ci/build/test exit0 records; verified its77-member regular-source archive (`47fb6fd0c38184dc3475e1656587d1734c74a0d80d2728f44418d81d42d78ede`) and per-file manifest (`11293f5cb40e77a2b8975d08519df39007d460e8ccc747aa3094385c030da6e6`), all77 matching the working tree at verification. Native3/3 passes the normal paths; third-case unknown initialization evidence remains intentionally retained. This does not cover a provider failing before its admission hook or an indefinitely held barrier.
+
+The remaining fixture P2 is still unbounded admission/finalization waiting. Primary requires one cohesive correction: each barrier observes the corresponding provider/installation's early terminal failure as well as a finite deadline; immediately observed rejection must also feed control flow rather than be discarded. Failure/timeout releases any held fixture barrier, starts only its owned cleanup, waits finitely for settlement, and preserves unknown intent/evidence and any continuing raw owner/lock. Do not hide a pending raw operation with a timeout and then delete its root. Add direct negative coverage for provider initialization failing before hook admission and a withheld admission/settlement barrier; distinguish expected fixture failure from a hung test. Use changed-input focused checks, then the necessary native-only Linux run; do not repeatedly rerun the unchanged normal three paths as proof of these failures. Production source is already closed for the prior owner-lifetime findings and need not change without new evidence.
+
+Nonconvergence accounting: v8 has one unchanged correction for the already required bounded-fixture failure handling; the normal3/3 pass does not satisfy that separate condition. Preserve this history. A further correction with neither bounded failure acceptance nor genuinely new observed causal localization triggers the mandatory stop/report rule for this fixture segment. No T005 diagnosis allowance has been used. The complete provider migration is independent and remains authorized. Root has requested export of the preserved v4/v5/v6 VM logs/actual exits and their attempt-to-cause mapping before treating that history as verified; no reconstruction of missing facts or rerun for reporting.
+
+Primary subsequently read the exported failure records: native v4 has npm-ci/build0 and test1,1pass/2fail (forged tuple/path rejection mismatch and held-provider outer/cleanup AggregateError); stdout SHA `b5f6cac4bda8f8f71cf8b9de7f6e4ed15eddbad39786726b5f3761132407f58d`. Native v5 has npm-ci/build0 and test1,2pass/1fail, the same held-provider aggregate; stdout `7f6f7cce136b989bd83bc17362aabaf50dc5cf05ff3a668776689d0577582016`. Both raw stderr files are empty and versions record Node24.16.0/npm11.13.0. V6 is explicitly transfer/preflight only: a prepared VM root but no versions/exits/stdout/stderr, so no execution result or timestamp is claimed. All prior roots/archives/logs remain preserved. Native v7 raw stdout `4f0f06ea9cf7dddea03ba221fbe8eacf749e0ed6d80feb1e4848446d5c1e970b` reports3pass/0fail/skip/cancel; explicit exit-status confirms npm-ci/build/test0, versions are pinned, stderr empty, metadata SHA `e4cb6374912e1a64f770e0ec6ed9cb99dc5c1b166aeed4cb0ceb2e7c51bfbd45`. This verifies normal-path recovery of the fixture defects, while the above bounded negative-path obligation and its one-unchanged accounting remain controlling.
+
+##### T005 bounded-fixture v8/v9 and host checkpoint evidence (2026-10-29 +08)
+
+Primary read native v8's preserved raw failure: extract/npm-ci/build0, test1,3pass/1fail. The new pre-hook failure fixture attempted chmod before its future directory existed, yielding ENOENT rather than exercising provider privacy validation. This is new observed fixture preparation evidence; v9 creates the exact owned directory first, then makes it non-private for the real provider check. Native v9 raw stdout `86279bec6dec0f0a96e842b5f5e531e2316a2304e4ffa9da4167e2969934e713`, empty stderr, explicit extract/npm-ci/build/test0 and versions Node24.16.0/npm11.13.0 are verified:4pass/0fail/skip/cancel. Primary verified all77 regular archive files, no extras, all77 current source hashes matching: archive `28206756dfffce030ba5a7a960e6166c2b19ea8f50f945e25e78fabe9c1c5972`, manifest `69b5b73600d0d78b76bdf36a3fb2ae20253752064a528182c4fd9e4d1a708db5`. Interrupted-initialization and early-provider-failure evidence roots remain deliberately retained. The frozen source follow-up is25 files, manifest `b89f45b5b2e3d5765fe29e31a2cde94ab0351e0c8057e24455ca7b0c82e42f0b`, only the Linux fixture changed from v8; independent review of the original bounded failure requirement is pending. The existing one-unchanged history remains; no diagnosis allowance is used or reset.
+
+Primary also read host-v9 format/lint/npm-test logs and pinned-version/exit metadata: format/lint/npm-test0,161total/154pass/7intentional Linux skips/0fail/cancel,25729.63875ms. Npm-test SHA `e7f72553d2579a26afc2e0826bbfcd06e4ff45a258ab2d68fe8e3811c1e6c2e7`; metadata `fbdecbc56a4ee18eb1bc6e79fa35523265b99df5739ea8389cf345c19f5b9519`. This is an actual raw-verified host checkpoint, not the final complete-provider revision or Linux installer acceptance. Original full ResourceOps/HMAC/qualifier/managed-assembly/crash/cumulative/USE-003 and final review/integration remain required. Evidence stays in the ignored native-owner-v8/v9 and host-v9 artifact directories.
+
+##### T005 v9 explicit terminal correction (supersedes, 2026-10-29 +08)
+
+Reviewer verified v9 `b89f45b5b2e3d5765fe29e31a2cde94ab0351e0c8057e24455ca7b0c82e42f0b`,25/25. Finite timers, rejection-driven control flow, pre-hook provider privacy failure, finally barrier release and unknown preservation are now implemented. A newly localized helper-call P2 remains: outer barrier arrays capture `providerTerminal` before `installer.install` has reached factory creation; the value is undefined despite a TypeScript assertion. Promise.race then fulfills immediately and the test can measure slow startup instead of the intended held-provider state. Primary read the frozen caller/helper and confirms this concrete value/order error.
+
+The same fixture-only correction removes the optional outer terminal: the outer waits use the already established installationTerminal, while the factory's inner wait uses its locally created actual provider terminal. Do not filter undefined silently or use another assertion to pretend initialization. Explicitly assert that the admission hook and settlement hook have both entered before timing withholding or releasing the held admission. Preserve finite early-failure/timeout/finally handling and the existing real provider privacy negative case. Run changed-input focused checks and one necessary native-only verification; no production rewrite or unchanged reporting reruns. The prior one-unchanged bounded-handling history remains recorded; this is genuinely new causal localization in newly introduced helper use, not a renaming reset or diagnosis allowance. The ordinary mandatory stop rule continues to control any subsequent non-converging correction. Full provider migration remains independent and authorized.
+
+##### T005 owner/native fixture segment acceptance (2026-10-29 +08)
+
+Independent reviewer verified v10 source manifest `0f6ec02bbea2472d4564e6fa904f16452fe2fbe2eea689282a428a801444341a`,25/25; only the agreed Linux fixture changed. The undefined-terminal P2 is closed, with no new P1/P2 in the delta. Outer waits use the already defined installation terminal; both hook-entry assertions precede withholding/release. Finite waits, early failure propagation, finally barrier release, journal absence, owner invalidation and unknown-intent retention remain. This source review ran no tests/VM. Combined with primary's actual native-v10 raw4/4, explicit extract/npm-ci/build/test0, Node24.16.0/npm11.13.0, empty stderr and exact77-member/source verification, primary accepts this narrowly bounded owner-lifetime/native-fixture segment. Prior failure/nonconvergence/transport records remain; no T005 diagnosis allowance was used. This is not T005 acceptance or a lifecycle transition.
+
+Native-v10 archive SHA `50802cf6a50a87b8c39e3c24986175b8efddf3e08ec4f6516c7cce7c0cd00943`; actual per-file manifest `source-contents.input.sha256` SHA `7fbc8d550784db1dcc672709b238c205cea2c756f9d45bc3edb23ab13fe2289b`; stdout `9128a2bf1b714e3ced6691c534679218f150e76bfa8b028e6e353c5cf8800ff6`. The differently named `current-source-contents.sha256` is digest-only in this bundle; primary preserved its initial parser-path mismatch and corrected the checker without rerunning tests. Initial transfer failed on inherited nonexistent cwd before snapshot writes, then succeeded from `/`; no execution failure is claimed for that transfer. Tests run the actual trusted PackageInstaller/BuildAuthority with a synthetic runtime/assembler: there is no production Docker assembly, qualifier, package build/workload execution or executable-install acceptance. Unknown fixture roots remain retained as reported.
+
+Continue the same implementer's full original T005 ResourceOps migration, authenticated journals and cleanup-only recovery, probe/fixture/network ownership, managed assembly, required publication/crash/concurrency regressions, current-input host/Linux/cumulative/USE-003, independent final review and primary integration. Relevant code/environment changes invalidate only the affected evidence and require appropriate re-verification; do not repeat unchanged native runs solely for reporting. T005 stays in_progress, uncommitted; T006 remains todo.
+
+##### Effective T005 managed-file fixture lifetime correction (supersedes, 2026-10-29 +08)
+
+The first full-provider migration increment adds `legacy-host-inputs` intent, fixed synthetic content/modes and exact-path disposal. Primary read native-v11 raw4/4, explicit extract/npm-ci/build/test0, pinned versions and empty stderr, verified its77 regular archive files: archive `e467a057c2d24c8e0ed6852cca4a2bff16350f03317c0fab3d66eaf47926f696`, actual manifest `64052d187310a7d58f6047526b959f47d34de73b5d9f0805c10f1357da4dd9a0`. Current manager index had already changed after that run; this evidence covers archived provider/component tests only, not the later manager integration or production qualifier. Qualification readiness remains deliberately unsupported.
+
+Primary read the frozen provider and identified concrete lifetime defects: setting `disposed=true` before removal means a concurrent/repeated call returns confirmed even if the first removal is pending, fails or returns unknown; dispose's raw removals/journal writes are not registered in the session operation set, so finalization can release ownership before their settlement; catch cleanup attempts every generated `/tmp` path even when exclusive creation failed before proving that file belongs to this fixture. File paths alone are insufficient creation proof. These are actual first-increment source findings under the original ownership contract, not a diagnostic window.
+
+The same implementer corrects this one cohesive file-fixture boundary while continuing independent provider migration:
+
+1. Use one retained disposal promise/state per fixture. Concurrent and repeated calls observe the same actual confirmed/unknown result and errors; never return confirmed merely because disposal started. A later explicit retry, if supported, must revalidate the exact retained ownership and cannot silently upgrade unknown. Preserve cleanup causes where relevant.
+2. Register fixture lifetime/disposal and all its actual filesystem/journal mutations before effects. Provider close seals new creation, initiates or joins cleanup of its own fixtures and waits for their raw settlement before journal retirement or SQL release. Already owned cleanup may run while closing. Recheck session/creation admission after awaited steps before creating further files. Late mutation cannot recreate a retired journal; unknown evidence/references remain retained.
+3. Primary selects a provider-owned private fixture directory under the actual BuildSession's private resource directory. Persist its precise intent before creation, create exclusively, establish its actual directory/file identities and creation receipts, and sync the necessary directory entries. Keep the established 0644/0600/0600 payload modes and fixed synthetic content. Returned paths are opaque trusted handles; the existing legacy manager takes paths as data, so default unmanaged T002/T003 behavior need not change. Partial creation/EEXIST/failure may remove only entries whose actual creation and unchanged identity are established; never delete a merely same-named existing/replaced entry. Verify identity/mode/content in unchanged checks. Full authenticated recovery still follows the original plan; an uncertain creation window remains unknown rather than being inferred owned.
+
+Required focused evidence: concurrent dispose with removal held, repeated unknown/error result, dispose racing provider close and owner release, close between file-creation steps, failure/EEXIST before a file is owned, replacement/foreign-entry refusal, restrictive umask and partial-create cleanup. Assert no premature confirmed result, no raw mutation after physical lease release, unrelated files retained and exact unknown evidence. Use finite controlled barriers and proper early-terminal observation, applying the already accepted fixture lessons. The ordinary two-attempt/nonconvergence history and original full T005 acceptance remain controlling. No full qualifier/production assembly/workload through an incomplete provider; controlled tests of actually migrated private fixture components are within the existing VM authorization.
+
+##### T005 transient VM preflight record (2026-10-29 +08)
+
+Worker's managed-file-v12 preflight returned `colima [profile=qdroid-t002] not running`; no guest test or VM start/restart was performed for that failed preflight. Primary took temporary read-only preflight ownership: `colima list` and `colima status --profile qdroid-t002` exit0 reported Running; the latter CLI timestamp is05:00:21+08. A read-only guest Python query exit0 reported boot `48e450a1-f9c2-4c8f-9c86-96cadca3f5e8`, uptime383094.41s, low load and14817509376 free root-disk bytes. That boot exactly matches the accepted T004 public CLI's persisted binding/qualification record. No start, restart, cleanup or runtime alteration occurred. The earlier CLI failure cause remains unlocalized; it is not a test failure or evidence of a new boot. Primary returned VM ownership to the same worker for its already required changed-input component tests, with no extra reporting rerun or blanket new-boot requalification. Derived tool observations are saved in `artifacts/private/t005-vm-preflight-20261029/status-observation.json`; the earlier failed preflight remains preserved. This read-only availability check is not a nonconvergence diagnosis allowance.
+
+##### Effective T005 Colima execution-context correction (supersedes, 2026-10-29 +08)
+
+After a second worker preflight reported not-running despite primary's Running/same-boot observation, primary paused further VM attempts and stated one falsifiable, at-most5-minute read-only diagnosis: compare the same status command under default versus elevated host execution. No VM start/restart/configuration/cleanup was in scope. Actual `colima status --profile qdroid-t002`, cwd `/`, default execution returned exit1/not-running at05:05:22+08; the identical command with `require_escalated` returned exit0/Running at05:05:24+08. Worker provided the exact failed05:04:11 preflight metadata: cwd `/`, sandbox_permissions omitted/default, no COLIMA_HOME/LIMA_HOME overrides. This localizes the misleading status to the execution permission context, not a VM reboot. The exact denied filesystem/socket primitive was not separately investigated or claimed.
+
+Effective tool guidance for the same implementer: all authorized Colima profile reads/transfers/guest test commands use host cwd `/` and `sandbox_permissions=require_escalated` with the existing dedicated-VM authorization; keep local relative-file preparation in the project before transfer. An automatic approval rejection, if any, must be handled on its actual reason, not disguised as guest state. Preserve the failed default-context preflights as host access failures, not executed Linux tests. Resume the already required changed-input managed-file component validation on the unchanged existing VM; no start/restart, extra reporting rerun or blanket new-boot qualification. Primary returns VM ownership and performs no concurrent guest work. Derived comparison evidence is in `artifacts/private/t005-vm-preflight-20261029/permission-context-diagnosis.json`. This one VM-preflight diagnosis allowance is now used; it does not reset any prior failure history or create another allowance if the same segment later fails to converge.
+
+##### Effective T005 managed-file review corrections (supersedes, 2026-10-29 +08)
+
+Independent review verified the frozen managed-file v13 manifest `6b43857c85f9546f6985bc139267f140b07af441e184070f342b5b3b11de49cc`,25/25 files. It confirms retained disposal identity, raw disposal tracking, exclusive file creation receipts, injected-manager failure propagation and closed native I/O intents. It also found four concrete P2s and regression gaps below. Primary compared v13 to the actual v16 snapshot: only resource-ops and its Linux test changed; directory removal now uses `rmdir`, and two assertions inspect AggregateError causes. Thus the empty-directory `rm`/EISDIR defect is already corrected; do not blindly redo it. The remaining findings are accepted corrections within the original file-ownership and close contract, not broader authorization or a new Task.
+
+1. Retain the actual fixture-root creation receipt rather than discarding it after inspection. Before removal, require the same ordinary directory identity, type and final mode. A replacement ordinary file or directory must remain untouched with unknown evidence; an empty pathname is not ownership proof. Use nonrecursive empty-directory removal only, preserving required directory synchronization. Cover replacement of the root itself as well as child fixtures.
+2. Recheck active creation admission immediately after the awaited I/O-root/native verification and before exclusive creation/writing of the16MiB I/O file. Close during a held verification must settle the registered native operation but cause zero subsequent file creation. Use a finite native-settlement barrier, real observed terminal results and exact creation assertions; this is the actual migrated I/O leaf, not permission to run an incomplete qualifier.
+3. Close must collect disposal rejections rather than discard `Promise.allSettled` results. Preserve the original journal write/rename/fsync or cleanup cause together with unresolved ownership and any primary error. Do not retire the journal/session or release raw ownership early. A regression must let close initiate disposal and inject the actual persistence failure; checking only a generic unresolved-cleanup message is insufficient.
+4. Correct the held-disposal regression so the assembler returns and the actual installer/runtime finalizer or provider close has entered while cleanup is withheld. Waiting inside the assembler proves only assembler waiting. Assert actual finalizer entry, still-held SQL exclusion/owner, and no retirement before release; then observe actual settlement with finite waits. Finally blocks release only owned barriers and await bounded observed settlement, retaining unresolved evidence. Restrictive-umask coverage must exercise managed fixture creation, not only content-only installation.
+
+Primary read actual v16 stdout/stderr, versions and explicit extract/npm-ci/build/test exit0;12pass/0fail/skip/cancel,1468.961259ms. Archive `f23d3876352f2429a6cd89a531c59d73ee966b12803912dff46b3d034e98efbd`; actual77-file manifest `863afaf500768cf183d9049c3c5ad0fe3006ca87020ff4992e6ca9b49f149f7b`; stdout `49b6e329143e549a204b13fac7d6b0f32088094cfbef9ea6e7a1d1bfaf7d3e6c`; stderr empty. Primary verified all77 regular members with no extras and all77 hashes against the working tree at verification. Frozen v16 review manifest `3ed1f82aed3f3fd1d1700bed379c0b506aafd7a7539b31ff12382df37c2052fe`,25files. This is component evidence with actual PackageInstaller/BuildAuthority and a synthetic runtime/assembler; no full Docker assembly, production qualifier, executable installation or T005 acceptance.
+
+Primary subsequently read preserved v13/v14/v15 raw stdout/stderr, versions and explicit exit records: each extract/npm-ci/build0, test1, Node24.16.0/npm11.13.0, empty stderr and zero skip/cancel. V13 is6pass/6fail with concrete EISDIR and a post-test unhandled rejection in the between-files fixture (stdout `1fedf5fd80ed1157aa6e41d612846cfbcb5d9651b59bfe4fbecff172027eb61d`); v14 is10pass/2fail, both assertions matching only the AggregateError's top-level message rather than retained nested causes (`73c5bb606b69627536b2e3168371e21ddcc103f26d7d99a1db1c3af0a79a1542`); v15 is11pass/1fail, collision's nested ENOTEMPTY absent from its expected pattern (`440a265d39a5c1518f79da79666656b279e1250576c7ed3d1c03f7764d5aecb6`). V16 passes12/12 without that asynchronous-activity report, but the independent held-disposal/finally regressions above remain required. These are actual distinct observed causes/corrections and progressive acceptance, not identical-input dispatch loops or a diagnosis reset. All failed roots and logs remain preserved. Primary also verified all four historical archives77/77 with no extra members: v14 changes only resource-ops, v15/v16 only the Linux test. The first v14 manifest parser rejected literal backslash-n separators; the unchanged raw manifest and a decoded observation view then matched77/77. This was artifact formatting, not source mismatch, and required no rerun. Audit: `artifacts/private/t005-native-20261029-managed-files-v16/primary-history-archive-check.json`.
+
+Same Terra implementer owns these corrections and the remaining full ResourceOps/qualification/authenticated recovery/assembly work. Root owns Plan/state/Git/acceptance; T005 stays in_progress and uncommitted. Preserve all nonconvergence history, the now-used VM-preflight diagnosis allowance, cwd `/` plus elevated Colima execution and current VM ownership. Required original current-input host/Linux/crash/concurrency/cumulative/USE-003, independent final review and primary integration remain unchanged. No executable install or full qualifier through an incomplete provider; controlled changed-input component validation remains authorized. No extra reporting-only reruns.
+
+##### T005 root-replacement stop and finite diagnosis (2026-10-29 +08)
+
+Primary read actual managed-file v17 and v20 logs:12/15 then14/15, both still missing the root-replacement rejection. V18 has no exported execution result; v19 is a transfer/preflight failure, not a Linux execution. The v17-to-v20 archived delta changes only the I/O post-success test seam and test assertions/settlement; the root identity implementation is unchanged. Primary paused further root-replacement edits/runs under the nonconvergence rule, while independent provider work may continue. Worker confirms no owned VM job is running. All roots, archives and failures remain preserved.
+
+Worker had already run instrumentation-only v21 before receiving the stop:14/15, extract/npm-ci/build0 and test1, pinned versions. Archive `3a4fe28f104296a0991a1edd45651ae02149eb0ecb0977b0173e3964cbbc0bbc`; reported manifest `062da1faf16b8f45aaec0f6a7c98b19036ef851ae15c7ace30e372d966a696a8`. Primary read its raw log and archived test. Both file and directory iteration diagnostics appear; because the loop propagates a failed assertion, this establishes that the file-substitution case passed and the directory case reached its own assertion. The directory case observes one runtime close call but no inner close error. The retained regular-file root and unresolved journal cited by worker belong to the earlier, correctly rejected file case; they cannot establish that the failing directory case retained its evidence or that the finalizer swallowed a rejection. No inode-reuse cause is yet claimed.
+
+Primary declares one at-most8-minute diagnosis for this root-replacement segment. Falsifiable hypothesis: removing and recreating the empty directory allows the actual filesystem to reuse the original dev/inode/mode tuple, so the current receipt accepts a different directory. Minimal discriminating experiment: add bounded test-only observations of the actual original and replacement directory stats, replacement kind, close outcome and post-close path/journal state to the existing synthetic root-replacement case; freeze its actual inputs and run that single case once on the existing Linux VM. Do not alter cleanup decisions/assertions, run the full suite, change sandbox/runtime/limits or clean old evidence. If tuples differ while cleanup still succeeds, reject this hypothesis and report the actual observed branch without speculative corrections. This experiment is within existing local/Mock/VM authorization and creates only the case's own temporary fixture/registry resources. The same Terra implementer executes the instrumentation and one run; root owns interpretation, effective-Plan recovery decision and acceptance. Preserve actual logs/exits and retain failed evidence. The VM-preflight diagnosis allowance remains used; this distinct root-replacement diagnosis is now invoked, and renaming/supersedes cannot renew either allowance. Without causal localization, stop this segment and report for user direction.
+
+Primary read the v22 single-case raw diagnosis, pinned versions and explicit extraction/npm-ci/build0/test1, empty stderr, and verified all77 regular archive members against the actual manifest with no extras. Archive `c1968c1498ef3f36f22a78a6600cf71190374081c3042bcd588cbaffa4c1d394`; manifest `92214ab0a3b65e14035d52c20cceaca9fbb598b71bdfa9fef817474aba7338fb`; stdout `ecc0aa20cd0af13bd1c6269ab939fb655255be40ab63de9f119ebba87548058d`. The hypothesis is confirmed: the original directory and replacement empty directory both have dev64769/inode573363/mode0700. Close fulfills, then both replacement path and journal are missing. The file iteration also reuses its inode but type/mode differ, so it correctly rejects and retains its evidence. This is causal localization of the unchanged root-replacement failure, not a swallowed-finalizer finding. No repair or second run occurred in this diagnosis. Raw evidence and primary archive check are under `artifacts/private/t005-native-20261029-root-replacement-diagnosis-v22/`; primary's initial generic-log filename lookup was corrected to the actual root-replacement log names without rerun. The root-replacement diagnosis allowance is used.
+
+Primary is selecting the minimal live-inode retention and persistent creation-proof contract. The same independent reviewer is checking that new primitive read-only, including failed initialization, descriptor settlement, recovery without surviving descriptors and the shared receipt assumption in migrated child resources. This consultation does not rerun the VM or reopen unchanged package review. Root-replacement repairs remain paused pending the evidence-backed effective Plan and complete brief to the same implementer; independent provider work remains authorized.
+
+##### Effective T005 live fixture ownership correction (supersedes, 2026-10-29 +08)
+
+The same independent reviewer verified the v22 archive/manifest77/77 read-only and confirms the retained-handle live choice, its initialization/settlement obligations and the same primitive's applicability to child files/directories. It also identifies the non-atomic path-check/delete window and limits of post-crash markers. Primary accepts that review and chooses this evidence-backed recovery of the stopped live-file segment; it does not reset the two failed corrections or either used diagnosis allowance.
+
+1. Hold an actual no-follow handle to each created fixture-root directory, fixture child directory, ordinary fixture file and I/O file throughout its live ownership and deletion decision. Preserve exclusive file-create handles instead of closing and reducing ownership to a reusable tuple. For directories, under the existing private-parent writer exclusion, perform exclusive mkdir, explicit final mode, `O_DIRECTORY|O_NOFOLLOW` open, fstat/path binding verification, then publish the live ownership. Keep numeric receipts as durable facts, not sufficient live identity. Do not serialize handles into journal JSON or expose them to workloads. A root-only handle fix is insufficient for this component.
+2. The trusted session is the sole writer of its private fixture namespace and exact generated I/O resource entries; cleanup-only recovery first obtains the existing authority exclusion and proves the original relevant writers settled. Preserve that exclusion across the final path/handle identity/content/mode checks and unlink/rmdir. No unrelated trusted path may mutate those owned entries concurrently. Untrusted workloads cannot access these host directories. If the trusted writer-exclusion invariant cannot be established, classify unknown and refuse deletion. This is not an OS guarantee against arbitrary hostile same-UID host code: a retained FD plus pathname unlink is not an atomic unlink-by-inode primitive.
+3. Register handles immediately with the actual initialization/fixture owner before further awaited work. Initialization failures before a provider is returned must close or transfer all actual owned handles before settling that initialization lease; retain uncertain durable evidence. One retained disposal/close promise owns each descriptor's close. Verify/remove while the original handle is still held; only then close it, or close/retain it after an explicit unknown classification with no subsequent tuple-based deletion retry. Settle descriptor closes and preserve their actual errors alongside primary/cleanup errors before physical SQL release. Never silently double-close, lose an unreturned provider's FD, publish confirmed cleanup before close settles, or close a handle and then reuse its old numeric receipt to delete a pathname.
+4. Keep post-crash fixture cleanup fail-closed until the full authenticated recovery implementation can establish adequate persistent ownership. A surviving numeric tuple cannot substitute for the lost live handle. A private exclusive marker with unpredictable nonce and authenticated owner/session/resource/path binding, synced with its directory and external record, may witness the expected nonempty namespace; it rejects a substituted empty directory. Missing/corrupt/copied or unsupported witnesses, legacy tuple-only records and a crash after marker unlink but before directory removal remain unknown unless independently proved safe. A valid HMAC proves origin, not an unchanged physical inode or resistance to copying by a privileged host writer. Do not add marker-based deletion as an unreviewed fallback in this live correction. Full T005 authenticated cleanup-only recovery/crash acceptance remains mandatory before executable installation is enabled.
+
+Required live regressions: the actual original empty-directory replacement reproducer now preserves both substituted file and directory; same-cause child directory and ordinary/I/O file replacement with identical payload/mode cannot pass merely by inode reuse; normal dispose/close releases its own held descriptors; failed initialization before returning a provider does not orphan them; concurrent dispose/provider close has one actual close responsibility and retains SQL exclusion until raw settlement; unknown or descriptor-close error retains intent and original error. Keep finite controlled barriers and failure-finally settlement, restrictive-umask managed fixture coverage, the already corrected post-success I/O admission and original full current-input Linux/cumulative/USE-003/review/primary requirements. The same Terra implementer owns implementation and necessary verification. Root owns this Plan/state/Git/acceptance; no new permissions, runtime limits, fallback, task completion or extra diagnosis are introduced.
+
+##### T005 live-fixture v24 component evidence, review pending (2026-10-29 +08)
+
+Same implementer reports retained no-follow directory/file handles for root, child directories, ordinary and I/O files; serialized trusted path cleanup; descriptor settlement on confirmed/unknown and unreturned-provider failure paths. Primary read v24 raw versions/exits/stdout/stderr: Node24.16.0/npm11.13.0, explicit extract/npm-ci/build/test0,19pass/0fail/skip/cancel,1800.524269ms, empty stderr. Both actual root substitution variants now reject and retain the substitute; original and replacement inode values differ while the original handles are held. The run also covers restrictive umask, successful-verification-before-I/O-close, actual finalizer-held SQL exclusion, disposal journal error, identical-content ordinary/I/O replacements, child directory replacement and failed-init descriptor closure. This is actual PackageInstaller/BuildAuthority with a synthetic runtime/assembler, not full qualifier/production assembly/build/executable-install acceptance.
+
+Primary verified all77 regular archive members with no extras and all77 against the working tree at verification. Archive `f3d97c797275c3ef45d497eb2a531fa0b4ed509c7e9ae53a534bf26c1ba762a2`; actual manifest `c62888c6da32eb14c2032cfa51d87f2ce81cdc4b058c6af892c4c331e9868e7e`. Evidence is under `artifacts/private/t005-native-20261029-live-fixtures-v24/`. Frozen independent review contains27 files, manifest `693c5742bf863e42b3fa8bef3914017460fe30d14d7e43e6f1463ca64c1a325f`: only resource-ops, managed-resource Linux tests, this engineering context and the reusable sandbox-permissions contract changed from the earlier frozen review. The same independent reviewer is checking actual live ownership/settlement and test causality; component acceptance awaits that review. Full provider migration and original full T005 acceptance remain pending; same implementer continues, no new permission or diagnostic allowance.
+
+Primary also read and bound v23 failure evidence77/77:16pass/3fail, extract/npm-ci/build0/test1, pinned versions, empty stderr. Raw stdout includes FileHandle garbage-collection closure warnings, one no-file I/O cleanup classified unresolved, and two tests matching only top-level AggregateError messages. V24 corrects the classification, root-FD closure on unresolved paths and nested-cause assertions, and has no such warnings in its recorded output. Absence of warnings alone is not descriptor-closure proof; source review and the direct regressions remain necessary. The initial v23 transfer used a wrong SSH alias and was corrected before execution, without a VM restart; no extra Linux execution is attributed to that transfer. All original failed roots/logs remain preserved.
+
+##### Effective T005 live failure-path corrections and closed probe expansion (supersedes, 2026-10-29 +08)
+
+Independent v24 review verified27/27 and confirms live root/child/file/I/O inode retention, the post-success I/O admission check, normal close error aggregation, failed-provider root-handle settlement, actual finalizer/SQL-exclusion regression and matching security-contract limits. It found three new concrete P2s in previously untested failure branches. Primary accepts them within the same live-file contract;19/19 is not acceptance of those untested branches. Same implementer corrects them as one batch:
+
+1. In cleanupIoFixtureMaterial, an acquired file handle with no receipt must still settle its close, while the uncertain path remains untouched/unknown. Current chmod/fstat failure before initial receipt loses that handle after creation catch; register and settle every acquired handle before further awaits, even when no fixture was returned. Cover actual exclusive-open success followed by failure before first receipt and verify FD settlement plus retained intent.
+2. Legacy-host and I/O creation catches must not convert independent cleanup/descriptor-close errors into false and discard them. Preserve the original creation failure, independent cleanup/close error and independent status-persistence error together. Keep unknown intent, one close responsibility and no old-tuple deletion retry. Cover creation plus close/persistence double failures with actual retained causes.
+3. Replacement regression cleanup cannot use assertion progress as confirmed ownership. A failing assertion while retained is still false currently recursively removes unknown evidence. Preserve failed/unknown roots; delete only after actual confirmed cleanup. Explicitly assert the replaced root's journal remains; add bounded actual installation/close settlement to the held-I/O finally, as already done for held disposal.
+
+The implementer also located a genuine full-provider API gap before creating effects: the original prepareProbe recipe identifies only legacy/profile family and cannot encode code-owned fixed variants, opaque fixture/control dependencies, bounded interaction or cgroup observation. Primary read the actual legacy and profile call sites and now selects the concrete closed extension in [Concrete closed qualification recipes and handles](../../planner/t005-build-serialization.md#concrete-closed-qualification-recipes-and-handles). That section is effective implementation input: explicit selector union, fixed program/profile catalog, same-session opaque fixture/control identities, fixed legal input phases, bounded original-result streams, fixed inspection snapshots and explicit resources injection through every current helper. It authorizes the necessary private closed union/DTO and pure catalog extraction within T005; routine private names/overloads belong to the implementer. It does not authorize argv, executable/source-code/host-path/format-template/Docker-flag relay, broader network access, another backend or unmanaged fallback.
+
+Prioritize the three concrete live failure-path corrections and their focused verification, then continue the closed probe/control migration without another permission request. Required full original authenticated recovery, assembly and current-input Linux/cumulative/USE-003/independent-review/primary acceptance remain; qualifier readiness stays fail-closed until the complete inventory is migrated. Existing source-selected runtime/profile/image limits and public T002/T003 compatibility stay unchanged. Preserve all failures and both used diagnosis allowances; these are new observed fault branches and an implementation prerequisite, not an allowance reset or another blind attempt. Root owns Plan/state/Git/acceptance; same Terra owns all implementation/tests/VM.
+
+The focused independent Plan check read the actual qualification call sites and verified planner hash `8b00fd1bce2680eabb3f8ff681acdb775e7e7bc9b21a26d38de49ecc8f3043b3`. The closed selectors, dependency lifetimes, fixed interaction/inspection, controller composition and fingerprint continuity cover the current inventory without a generic relay. It found one concrete P2 in the new wording: legacy memory currently attaches and requires the original exit137, while profile memory starts detached and separately queries OOM state. Primary corrected that family-specific mapping in the effective planner and selected start() with no caller mode argument. Existing program/completion semantics are preserved; profile detached start CLI exit0 cannot replace actual workload completion. This is an evidence-backed contract correction before probe migration, with no new authority or diagnosis. Same full T005 scope and three live failure-path corrections remain; the complete brief below carries the corrected current contract.
+
+Primary read v26 raw21pass/0fail/skip/cancel,1889.809392ms, pinned Node24.16.0/npm11.13.0, explicit extract/npm-ci/build/test0 and empty stderr. Verified77/77 exact regular archive members with no extras and all77 matching the working tree at verification: archive `d6946d7ee0ba0186fe3dfa8cf138a81864d0dc4214a164422c937d2acb7938c9`; actual manifest `641455ddebfe88efb54dc1b206059bd9c2dfa4ab63e4048944e803e3d3c8b573`. This remains native/file component evidence with a synthetic runtime/assembler, not full T005 acceptance. The initial v25 raw-log lookup found files not yet exported; after worker exported existing originals without rerun, primary read19pass/2fail,1941.793293ms, extract/npm-ci/build0/test1, pinned versions and empty stderr. Both failures match only top-level AggregateError rather than nested causes. Primary verified v25 archive77/77 and actual v25-to-v26 change only in the Linux test; stdout SHA `698e033e83222839164a1410075227e0c48104836cf8712f6f70359a8c1544c9`. All failed evidence remains retained; no reconstructed timestamps or new diagnostic allowance.
+
+The same reviewer verified v26 review manifest `2f44959c25a46e701acd429bdcdd8c4ba94c3c448ce3daf99acea59db80f8d2c`,27/27, and closes both production P2s: pre-receipt I/O FD settlement and complete creation/cleanup/status error preservation. Root journal presence and held-I/O finite settlement are also verified. The original test-evidence P2 is only partially corrected: replacement preparation can fail between unlink and write before retained is set, and the outer generic unresolved assertion can misclassify that setup failure as the intended rejection, then remove unknown evidence. Same original correction remains required, with new exact preparation-branch localization; do not claim the evidence-retention requirement closed or reset its history. Retain this negative case's root from its first resource effect (an always-retained negative fixture is acceptable), and explicitly assert outside installation that replacement preparation and the intended disposal were actually observed. Only actual confirmed cleanup can authorize tree removal. This is a bounded test-only correction within the existing complete brief; unchanged production/native evidence may be reused, with focused changed-test verification and later original final cumulative acceptance. No new diagnosis or authorization.
+
+##### T005 live-file component acceptance and inspection DTO correction (2026-10-29 +08)
+
+Independent v27 review verified27/27 frozen inputs, manifest `a68d9600ba919b69d347e1e6894600cd15a86bc4c071b2ee6b919bc94e202141`, and closes the last original live-file P2: the negative replacement case retains its root from its first effect and requires explicit replacement-prepared and disposal-completed milestones outside installation. Preparation failure cannot masquerade as the intended unresolved result or delete its evidence. Primary inspected the five-file v26-to-v27 delta: live-file production logic is unchanged; runtime changes are closed probe types and removal of an unused unsupported private method, with matching test doubles. Primary accepts this narrowly scoped live-file component using the relevant v26 actual21/21 and v27 changed-case1/1 evidence. This is not T005 acceptance, a completion transition or a commit.
+
+Primary read v27 raw stdout/stderr, versions and explicit extract/npm-ci/build/test0:1pass/0fail/skip/cancel,89.779212ms total, Node24.16.0/npm11.13.0 and empty stderr. Exact77 regular archive members with no extras match the actual manifest and working tree at verification: archive `eba701c0487cefb65915ca9d3467fe3d6a080581a1307cdcef4f4bf380a31fec`, manifest `09e4f6343e454ef83078e4e11991ac2394929da241e9928dce5143a28febd295`. Evidence is under `artifacts/private/t005-native-20261029-replacement-fixture-v27/`. Two preceding transport attempts and one log-export path failure are retained separately; they ran no test and are not passing or failing Linux executions. The worker reports host format/build/lint/diff checks, but primary has not independently bound raw host logs and does not count them as final host acceptance.
+
+The same review found one new P2 in the first closed inspection DTO increment. The existing CPU verifiers require quota/period, usage and period/throttled counters plus comparable cgroup identity; profile and I/O verifiers also require effective memory/pids limits and fixed-device I/O limits/statistics. A flat usage-only snapshot cannot preserve these assessments. The descendant observer needs its own PID, bounded PID/PPID entries and original command observation, rather than only descendantPids. Primary read the actual index/backend verifier call sites and accepts this localization. Complete those fixed, bounded, probe-bound return fields before migrating the corresponding verifiers; keep PID/path/format inputs forbidden, provider-derived identities and the existing assessment semantics. This corrects the local DTO to the already effective fixed-inspection contract, without adding capabilities or changing the Plan's execution method; the same implementer receives a routine correction within the current complete brief.
+
+Primary also bound the subsequent v28 isolated handle-identity run: actual1/1, explicit extract/npm-ci/build/test0, pinned versions and empty stderr. Archive `739790bf2d55606a89eb903b993a1ae2f37128ea6565c41ad4d5d95cc29de852`, manifest `15633a1f52530414b91e67119c078c42101cdb0ddb0db4fd168ffa34046c2408`, exact77 regular members/no extras; resource-ops had already advanced in the working tree when primary compared current inputs, so this evidence remains bound to the archived source. Primary read the v27-to-v28 delta and found a new concrete local regression: async fixture-disposal wrappers invalidate opaque identities but allocate distinct Promises, conflicting with the already required single shared-disposal Promise and accepted repeated-disposal regression. The focused identity case does not cover that behavior. Same implementer must retain immediate invalidation while returning the original disposal Promise, then run the affected disposal and identity cases together. The v27 component acceptance does not accept changed v28 disposal behavior. This is a source-localized ordinary correction within the current contract; preserve prior failure history and allowances. The worker separately reports completion of the inspection DTO shape correction; runtime query integration and its eventual independent acceptance remain pending.
+
+V29 primary verification read actual2pass/0fail/skip/cancel,1298.599132ms, explicit extract/npm-ci/build/test0, Node24.16.0/npm11.13.0 and empty stderr. All77 archived regular members and hashes matched the working tree at that verification. The first local checksum assertion expected a bare digest while archive.sha256 includes its filename; primary inspected the actual bytes, corrected only that local parser and completed verification without any Linux rerun. Independent reviewer verified27/27 frozen v29 inputs, manifest `750f778e35d0ba3451753bbdb6ee8981fa0e40f9c4930cee6f0ea56f0d995a9a`, and closes both the DTO and disposal-Promise findings with no remaining actionable P1/P2 in that delta. Primary accepts those bounded source/component corrections. Host immediate invalidation and both fixture kinds' Promise identity have direct assertions; I/O immediate invalidation is source-confirmed, I/O replacement unknown is actually run, and the new child-directory strict assertion remains source-only until the full relevant cumulative run. Type completeness does not establish query implementation or runtime qualification.
+
+Full provider/control/network migration, authenticated cleanup-only recovery, managed assembly, required current-input host/Linux/cumulative/USE-003, independent final review and primary integration remain pending. Readiness stays fail-closed. Preserve all failures and both used diagnosis allowances; no new allowance, permission, lifecycle mutation or acceptance of executable installation is introduced. GitHub's existing T005 progress comment records the bounded component progress and remaining work, preserving its earlier history.
+
+##### T005 stopped configuration-probe increment and lifecycle corrections (2026-10-29 +08)
+
+Primary read actual v30/v31/v32 logs and verified each exact77-member archive and manifest. V30 fails0/1 only at the created-container exitCode assertion (actual0, expected null); extraction/npm-ci/build succeed and fixed identity/configuration assertions precede that failure. V31 changes only that test expectation and passes1/1. V32 adds actual create-before-ID-persist failure cleanup and passes2/2,1281.137249ms, with explicit extract/npm-ci/build/test0, Node24.16.0/npm11.13.0 and empty stderr. V32 archive `65f1e0d00dbfec622ef4dcd853702637a93a811060289a94d72fdd8854955972`, manifest `efa99a13526d694d738a9e2daa2d1d56af883ab5416f215dd3fb64545fa93bb6`; exact77 regular members/no extras. Only index.ts had advanced in the working tree when primary compared current inputs, so evidence remains bound to the archived configuration component. Frozen review27-file manifest is `eac9290cb497b22337f69c67739a508bd051e14d3483a448abbd0660cfca939a`. No full qualifier or executable package/build was run; full readiness is still disabled.
+
+Primary source review of the new OwnedProbe wrapper identifies three concrete local lifecycle violations of the existing contract. Correct them together before propagating this pattern to other selectors: (1) stopAndRemove returns confirmed immediately while create is in flight because active is still undefined; it neither seals future creation nor waits for the current raw creation/cleanup. A prepared handle stopped before create must reject later creation, and stop during creation must share one responsibility and derive its final evidence from the real creation/cleanup outcome, including unknown failures. (2) inspect can reuse cached creation and call the guardian without a new owner/admission check or registered operation; it can therefore issue an inspection after provider closing begins. Every new inspection must synchronously validate current provider/probe/owner state, remain registered through its actual command settlement, recheck after prerequisite awaits, and serialize safely with cleanup. (3) the configuration selector's unsupported start currently calls create before rejecting. Reject this invalid phase before effects. Preserve cached creation/removal responsibility, original errors, actual exact-ID cleanup and the already accepted owner/FD rules. A fourth concrete delta regression changes prepareProbe from async to a plain function, so existing forged/disposed rejection tests receive a synchronous throw before assert.rejects can observe a Promise. Retain that method's prior rejection behavior; unlike cached create/dispose/stop, prepareProbe has no shared-Promise identity requirement.
+
+Required affected regressions use finite controlled barriers and immediate rejection observation: stop before create with no container effect; stop during actual held create/ID persistence with no premature confirmed result and no later creation after stop; repeated/concurrent stop shares one result; inspect while owner/provider is closing rejects before a command and admitted inspections settle before final release; configuration start before create has zero effects; existing forged/disposed-handle rejection remains observable. This is a source-localized correction within the original legal-phase/admission/cleanup contract, not a new capability or execution method. Same implementer owns it; unchanged prior facts may be reused only for the relevant inputs, and all failure history/two used diagnosis allowances remain. No additional diagnosis or completion transition is introduced.
+
+Primary subsequently read v33 actual5/5 and v34 actual6/6,1828.941598ms, no failures/skips/cancellations, pinned versions, empty stderr and explicit extract/npm-ci/build/test0. Both runs use identical source archive `cc8fad407e9fafaddbad85b47bf3bb2de2182939f4918992f916d0f3ac1ee111` and manifest `6a63f97a8e6697a218ea6b344d235c0a64af11bebd691ffd8875cfe36a209bae`,77 exact regular members/no extras, all77 current hashes matching at primary verification. V34 adds the existing forged/disposed-handle regression to the five affected configuration cases. The first v33 transfer used local relative paths from cwd `/`, produced an empty remote archive and ran no test; its transfer log records the error and subsequent overwrite of that known owned empty transfer destination with verified bytes. It is not a failed Linux execution. Primary source review confirms the four wrapper corrections and explicit managed manager/configuration routing with readiness still false. Frozen v34 review27-file manifest is `16abe9b755715b71a6c43970aed1b000698518a9c60aa68cae1cb76ad6f38194`; same independent reviewer is checking the actual lifecycle/guardian delta and additional error/terminal-ordering concerns. Component acceptance remains pending that review, full inventory/authenticated recovery/assembly and original final acceptance are unchanged. The assembly-only Plan extension below does not affect this stopped configuration leaf's allowed behavior or establish production readiness.
+
+The independent reviewer verified v34 manifest27/27 and confirms all four original wrapper corrections, actual successful create/full-ID/image/label checks, full-ID cleanup and preserved unmanaged path. It finds three new concrete P2s in this same component: stop/completion rejections and idle-guardian status-write errors are discarded; an autonomous guardian deadline can persist terminal cleanup before a delayed created update regresses it; two new barrier-test finally blocks release barriers without bounded actual installation/stop/close settlement. Primary accepts these source-localized findings. The6/6 does not cover those failure/interleaving branches, so component acceptance remains pending rather than treating them as follow-ups.
+
+Same implementer corrects the three together within the existing contract: preserve cleanup facts and independent guardian/status-persistence errors, aggregate them with the original failure and directly assert nested causes; preserve the first actual completion/cleanup fact and forbid a delayed create step from regressing it, with a controlled after-actual-create interleaving across autonomous completion; keep each owned installation/stop/close Promise available to finally, release barriers, then boundedly await actual settlement before test return, retaining original failures/unknown evidence if settlement fails. Reuse the previously accepted finite-terminal/early-rejection/test-retention patterns and allErrorMessages helper. No generic retry, swallowed errors or fabricated cleanup confirmation. Authenticated create-success receipts and full recovery remain original pending scope. Prior closure/new localization is real progress; preserve all attempts and both used diagnoses without a new allowance or repeated unchanged run.
+
+##### T005 v35 failure/terminal delta and v36 protocol baseline (2026-10-29 +08)
+
+Primary read actual v35 raw8/8,12039.812985ms, explicit extract/npm-ci/build/test0, Node24.16.0/npm11.13.0, empty stderr; verified77 exact regular members/no extras/all77 current hashes at verification. Archive `10ec807ccc491bd7f7aeb042628921444162f596f51cd6154463f9ed0042d59e`, manifest `efa607439745a764ef1d3651196a5e41066bef70bffb9f9c1843d3a4d4d9aaa0`; independent frozen27-file manifest `06a4864a8f09230632abb53c51d39b7b573e4c99a339d7313bb45d9ed2f2d58a`. The direct double-failure and actual10-second deadline-before-ID-persist cases pass. Shared mutation/native handling changed, so primary requested the existing full managed-resource plus guardian-native component regression rather than reusing old file/native evidence. The reported initial unavailable colima cp transfer has no retained original raw log; treat it only as worker-observed, without rerun or reconstructed timestamps.
+
+Independent v35 review verifies27/27, confirms durable-before-memory and improved direct probe/idle error preservation, and confirms the original two held-test finally repairs. It finds four concrete remaining/new branches, accepted by primary for one correction batch:
+
+1. Observe the immutable raw guardian terminal fact immediately, before waiting for group/status persistence, and recheck it after every prerequisite await including actual container-ID write. The current pre-write check can still return a terminal handle while ID persistence blocks and the terminal status write queues behind it. Add that actual write-wait interleaving, not another before-write barrier.
+2. Track the whole settlement-observer Promise, including follow-up status write and error collection, rather than only the original completion. close must await that full raw settlement before copying settlementFailures and sealing/releasing, preserving the original native/guardian error as well as independent persistence failures.
+3. Distinguish provably unauthorized idle guardian shutdown from uncertain authorized execution. Current completion observer can write unknown on deliberate idle disconnect, then the globally absorbing unknown status disagrees with stopIdleGuardian's confirmed result despite actual no-authorization/group-exit proof. Resolve only that explicitly proven idle path; do not generally allow unknown-to-confirmed or overwrite original authorized uncertainty.
+4. The new deadline polling helper has an unbounded loop which survives the outer Promise.race timeout/early terminal. Give polling its own finite deadline/cancellation and await losing work; stop future reads after failure. Deadline finally must retain the original failure and aggregate independent settlement errors rather than replacing it.
+
+The v35 run does not cover these interleavings; the component remains unaccepted. Known closures and new causal localization preserve forward progress and all original attempt/diagnosis history; no new diagnosis allowance or permission is introduced. Same worker owns all corrections and the now-accepted private protocol/assembly contracts.
+
+Primary also read actual v36 full-component failure:30 total,24pass/6fail,2457.217206ms, zero skips/cancellations; guardian-native6/6 is INCLUDED in those30, leaving managed18/24. Extract/npm-ci/build0/test1, pinned versions and empty stderr. Archive `d86dc7915b45fc8f0c8c862589cc7e905a3d8d4baaae74439eb326389b5970df`, manifest `93d390dfe46fdf4fd6795cba51dbb62c79534e4a702f4505bec8ce23a7144bfc`,77 exact regular members/no extras. This includes a new private protocol baseline, so it is not an unchanged rerun of v35. Worker localized and primary confirmed that the protocol field was added to the normal created reply while the fixed-probe reply remained unversioned; the six configuration failures encounter unsupported probe protocol before their intended later phases. Current source swaps those replies back to the proper modes. Primary additionally found the fixed inspect validator still expects3 keys after the valid versioned request became4 keys (id/protocol/query/type), and sent that concrete correction before the next run. Preserve all failed roots/logs. A fresh changed-input component run is required, with the above shared-provider corrections as appropriate; no broader qualifier or workload execution is enabled.
+
+Primary verified the next two actual full-component snapshots. V37 archive `b6a0830e0c398c2aa377999503091dccdd92b6845def6b49d7bf205424ac966b`, manifest `c434f3658dd3f6e658a1f1a7fb262b96e5f313cb1044b2f1ac9cb4caeb8ef879`, contains77 exact regular inputs/no extras. Raw combined30 total is28pass/2fail (guardian6/6 included, managed22/24),12643.726628ms, no skip/cancel; extract/npm-ci/build0/test1, pinned versions and empty stderr. V36-to-v37 source changes only the two created replies, so the remaining two inspection failures independently narrow to the still-three-key validator. Preserve this failure, rather than describing28/30 as managed-only.
+
+V38 changes only that validator cardinality to4. Primary read raw combined30/30 (guardian6/6 plus managed24/24),12857.55825ms, no fail/skip/cancel, Node24.16.0/npm11.13.0, explicit extract/npm-ci/build/test0 and empty stderr. Archive `6544c8808b996cafb489890f93e760c675890fab336eacabc8c98556da2fcf4c`, manifest `23a9be1d8ef6a6f5794acfe70439be60804f22ca9ca936980369cd2004da0898`:77 exact regular members, no extras, all77 current at verification. The original initial remote-redirection failure output is retained in transfer-initial-attempt.log; the subsequent absolute stdin-to-tee transfer succeeded before this run. No test ran on the failed transfer. This closes the observed private-version baseline regressions only. Root sent the four source-localized v35 P2s as one batch to the same implementer; those required interleavings remain untested/unaccepted by this30/30. Full provider migration, authenticated recovery, managed assembly and original final acceptance remain pending; no lifecycle mutation, commit, new permission or diagnosis allowance.
+
+Primary read actual v39 combined31/31 (guardian6/6, managed25/25),12816.926445ms, no fail/skip/cancel, extract/npm-ci/build/test0, pinned Node24.16.0/npm11.13.0, empty stderr. Archive `87d6b07899bba8c061862e44c401b6373580649788821a7c8280b8304f39c900`, manifest `d6f7a3a13c5002c0974ebf896913219e27baba1fab7c9a9347f00c371adc0d0b`:77 exact regular members/no extras/all77 current at verification. Independent review verified27/27 frozen files, manifest `09a402bc3c76190b2bb37e90172eb9730be08600a1f70e03d67f8c2ad30ef5be`, closes the four production-source corrections and private-version compatibility fixes with no new production P1/P2. The initial review-copy command stopped at an expected engineering-document mismatch from v35; root corrected only that copy assertion for current context prose, with no test rerun or evidence change.
+
+Two original test requirements remain P2, not new issues: the deadline finally still replaces the primary failure if its subsequent installation settlement fails and can skip the retention diagnostic; use the existing primaryFailure/AggregateError pattern. Its new afterProbeContainerIdPersist barrier is AFTER the ID write, so it cannot reproduce terminal-status persistence blocked behind an in-flight ID mutation. Add the actual queued-ID-write interleaving and retain original deadline; the regression must distinguish the old persist-before-record-terminal behavior plus the new final recheck. Primary accepts source closure only and sends both remaining test corrections to the same worker, alongside the independent package-input fixes below. No whole-component acceptance, new diagnosis, lifecycle or Git transition follows31/31.
+
+Independent read-only preparation while the same worker corrects shared settlement: archive/strict-JSON/manifest parsing consumes hostile package bytes and is stable outside the worker's current ResourceOps/guardian changes. Root requests one bounded input-boundary code review from the existing assembly-contract reviewer, using a frozen exact source copy. Scope is transport/USTAR/JSON/manifest/reference validation before trusted filesystem writes, including actual limits and aliases; exclude unfinished dependency resolution, session/assembly/recovery implementation and the current four settlement corrections. Aggregate only actionable source findings into the same T005 acceptance work; no tests, VM, network, source/state edits or new implementation agent. This is preparation, not final Task review or acceptance of the incomplete installer.
+
+The independent package-input reviewer verified10/10 frozen files, manifest `199ff029e6887624e0fa8b0f600d0d179e1f343f9839ad12bd8c286e0e9066df`, and identifies two source-confirmed P2s, accepted by primary: content-only selection ignores a declared build when no executable variant/entrypoint exists, and requireSemver accepts library-normalized spelling but retains the original string as an immutable-version identity. A content-only build must reject before staging/runtime effects. Manifest versions must use canonical SemVer spelling: reject prefix/whitespace aliases such as v0.1.0 and padded0.1.0, preserving the explicitly valid canonical prerelease and build-metadata syntax. Do not silently rewrite sealed package bytes or create duplicate identities; tests must reject alias/conflicting inputs and preserve canonical metadata behavior. These are ordinary corrections within original input/identity acceptance, assigned together to the same worker; no scope or persistence-schema extension. No other actionable archive/strict-JSON P1/P2 was found in that frozen scope. This is source review, not execution or final Task acceptance.
+
+Primary input-boundary follow-up found one additional source-confirmed P2 in executeBuild: stdout is bounded to8MiB transport, but the shared bundle decoder permits gzip and32MiB expanded data, and executeBuild checks only file count/types/export names, not the8MiB total exported file bytes required by plugin-package.md. A finite host in-memory source check on Node24.16.0 constructed two legal4.5MiB generated files, gzip transport7,206,939 bytes, and the actual source readFrozenUstar accepted9,437,184 exported bytes (2 files). Raw bounded summary is retained in artifacts/private/t005-start/build-output-size-source-check.json; no package code, VM, Docker, network or installer filesystem ran. Correct the decoded generated-byte sum before sealing/publication, retain existing transport/per-file/file-count/backend limits, and add a compressed multi-file regression whose transport fits but exported total exceeds8MiB. This is an original output-limit requirement, not a new budget or format; same worker owns the correction with the two input cases above. Existing used diagnosis allowances are unchanged; this is a newly observed source/finite-input boundary, unrelated to the earlier nonconverging segments.
+
+Primary accepts the narrow stopped-configuration/settlement component on v40 after actual31/31 Linux and both independent delta checks. Actual source archive `854393054b470150734ab4fc642fd49ebc30cb40869d091cf6c63f1983159032`, manifest `85d1c1cbd2308eea74db346ebfab0d8dc528bcb98a6832735f22ec4710832857`,77 exact regular members/no extras/all77 current at verification; raw duration12802.304827ms, no fail/skip/cancel, extract/npm-ci/build/test0, pinned versions, empty stderr. Independent27/27 manifest `bc03ad8daa0a4e61b0e26f711f4d4b620b9fa2145de380a6ed181f018834f83a` closes the two remaining test P2s with no actionable related P1/P2. The barrier holds the serialized ID-journal mutation before durableWrite and proves actual guardian deadline while disk remains starting/noID, then permits queued terminal persistence after release. This is not a claim that OS rename/fsync was already in flight. Original failure/independent settlement errors and retained diagnostics survive finally. Combined with the prior source closures, all four original v35 branches are closed for this stopped leaf.
+
+The separate input reviewer verified the same27 manifest and closes the content-only/build, canonical-version and decoded-output-budget source findings, with no actionable input-delta P1/P2. Worker reports two pinned host focused20/20 runs but retained no original command/stdout/stderr/exit metadata; root found no authentic log export and does not promote those reports to final independent execution evidence. A subsequent test-only edit strengthens the canonical0.1.0 conflict/metadata distinction and is not retroactively part of v40. Preserve its actual later input attribution; the mandatory final current-input host checks will provide retained execution evidence. No unchanged Linux rerun solely for that installer-test edit. Full provider/assembly/authenticated recovery, resolver, current cumulative/USE-003/final review and primary integration remain required. T005 remains in_progress, uncommitted, with readiness false and all old failures/used diagnoses retained.
+
+Remaining resolver integration preparation (read-only): original T005 still requires bounded approved-source dependency resolution; the current index defines graph budgets but parseManifest/source-lock accept no dependencies and resolvedLockSelection writes an empty list. This is incomplete original scope, not a completed parser claim or permission gap. Root requests a bounded actual-source map from the same input reviewer: current source/lock/assembly/build identity propagation, existing documented field constraints and the minimal private coupling needed for a real graph. Return facts, reuse options and unresolved public-format choices only; do not choose an effective contract, implement code, broaden fetch authority or weaken graph/build requirements. Root will resolve material interface/format choices before releasing graph implementation, using the same existing Task owner. This analysis can run independently of the current settlement/input corrections; its aggregation point is the existing T005 Plan and complete implementation brief, not a new task/state record.
+
+The resolver source map confirms the original gap: one package/lock/material path, empty dependency selection, no actual expanded-byte aggregate and no node-level retained references. Primary now selects [Bounded package graph and retained node materials](../../planner/t005-build-serialization.md#bounded-package-graph-and-retained-node-materials) for a required narrow independent pre-implementation check. V0.2 manifest/source-lock direct exact name/version/sourceId declarations use administrator catalog transport pins; the trusted external resolved graph records actual hashes without recursive source-lock hashes. Root is included in32 nodes/depth0, shared diamonds deduplicate, cyclic/conflicting bindings reject, actual transport/expanded budgets and finite sequential abortable reads are enforced. Graph members are private root-installation materials, with compatible approved runtime catalog/ABI, deterministic dependency-first declared builds in the same actual owner/session, fixed per-digest material paths and no automatic child publication, service or grant.
+
+Selected graph persistence explicitly extends the earlier single-package interface choice: root-only registry v3 adds nullable retained graph-manifest path/digest with a short namespaced preserving migration, while node receipts/materials remain sealed under the original root candidate. The graph manifest excludes final runtime receipt/image to avoid cycles, and the root final receipt binds its actual graph material. Prepared/verification private provenance includes real owner/member/closure bindings; no caller registration/paths or replay. V0.1 single-package identities remain compatible, and committed graph reuse verifies retained sources/outputs/images rather than rebuilding. The original graph/Linux/crash/concurrency/full-task acceptance remains required. Root asks the same existing read-only reviewer to check only these new format/persistence/build-composition choices before graph implementation is released in a complete supersedes brief; other already accepted probe/assembly work continues. No new permission, diagnosis allowance, task or lifecycle transition is introduced.
+
+The same independent reviewer verified planner `0848605623970bf5547dcaccf4aacecc8181bbdf72fd383ab3cc9e36d1787be5` and reports no actionable P1/P2 or unresolved implementation decision in the new graph contract. Primary accepts this format/private-member/build/material/persistence composition for implementation and supplies the same T005 worker a complete supersedes brief, releasing only the graph pre-implementation condition. This is no graph code/execution acceptance, lifecycle advance or scope reduction. All already accepted narrow components and original pending provider/authenticated recovery/assembly/current Linux/cumulative/USE-003/final review/integration requirements remain. Both used diagnoses and all original failures remain controlling; existing local/simulator/Mock authorization covers this work.
+
+##### T005 first executable fixed-probe increment (2026-10-29 +08)
+
+Primary read and verified both actual fixed scratch-probe snapshots. V41 fails0/1,1865.540205ms, extract/npm-ci/build0/test1, pinned Node24.16.0/npm11.13.0 and empty stderr; exact77 regular archive `232338d4db299754e6767d606550088958ffd5e63b3f3792e63a6ffb70f0ef43`, source manifest `f935e98dc55a4122b8d8a0b6dded97a9945b2c7a439a4d2da785ffe344102d5d`. The original guardian-closed failure and retained root remain. V42 changes only inspectFixedProbe state admission: allow probe-running and probe-command-completed as well as probe-created. It passes the actual single create/start/streamEOF/original completed-exit0/state-inspection/exact-final-remove case,1358.973138ms, extract/npm-ci/build/test0, pinned versions and empty stderr. Primary verified77 exact regular archive members/no extras/all77 current at verification: archive `5fd94c275bebb12375a89013b4f90ae382e05f967de449d17e4887982570a3ba`, manifest `24da98e552b39278dcbba819d1ae356fb10c1eac5d17fd950bed75591f6cc2e4`.
+
+This adds selected non-mount legacy fixed executables and the first actual command-completion/resource-cleanup separation; it is not full selector, phase/failure/EOF/EPIPE, profile/control, recovery or qualification acceptance. The new cross-module private start/completion/stream lifecycle changes shared guardian/provider behavior, so root requests the same boundary reviewer to inspect that frozen core delta against the already accepted private protocol, excluding explicitly unfinished inventory/recovery. Aggregation is the T005 core-protocol implementation, not a final Task review. An appropriate current full managed-resource/guardian component regression is required on these changed shared inputs; worker may batch it with the next related executable increment rather than repeat unchanged single-case checks. All original final Linux/cumulative/installation requirements and used failure/diagnosis history remain.
+
+Independent v42 core review verifies27/27 and finds five source-localized P2s, accepted by primary for one correction batch under the existing protocol: (1) final closed after created can leave probeStarted/probeCommandCompletion forever pending; settle every outstanding probe Promise on final close and reject phases after removal seals admission. (2) Running=false is not proof of command descendants gone while the guardian's shared group remains live; retain false when proof is insufficient and require separate final cleanup, correcting the new test's true assertion. (3) command-terminal work is marked started before async stop/inspect but has no cached full Promise, so concurrent cleanup can remove/disconnect first and a late completion can regress lifecycle state; share/await actual terminal publication and preserve first original result, including output-limit. (4) execution.stop directly sends stop, bypassing outer cached removal/sealing and swallowing errors; return the exact shared stopAndRemove responsibility. (5) newly opened selectors uniformly use10s/65536B instead of original recipe values (descendants2s, output-limit5s, original JSON/memory output8192B); reuse the fixed catalog's original per-selector deadlines/caps rather than broadening them. Primary also read the actual closed, completion and shared-group code and agrees with these causal failures. These are required corrections, not acceptance of the first1/1 or permission to relax the contract.
+
+Same worker owns the complete correction and discriminating tests: post-created close/start/stop settlement, original command result across held async terminal publication/final cleanup, execution/probe/provider shared Promise sealing/error propagation, and selector identity/deadline/output constants. Keep original stdout/EOF/error/resource proof semantics, finite fixture settlement/retention and the existing version/normal-path compatibility. Batch the necessary current full shared component regression with these changed inputs if no run is already active, preserving any already-running result separately. Full selector/controls/recovery/assembly/graph and final current-input original acceptance remain required; no new diagnosis or scope/Plan reset.
+
+Primary verified actual v43/v44 full shared-component evidence. V43 is33total/31pass/2fail,15344.745735ms, extract/npm-ci/build0/test1, pinned versions/empty stderr. Exact77 archive `4704563f7f0e8760eeb4da9bf68944e5086173f470a3fe849f152244652ee710`, manifest `5290928a5688635a869098b0fc44893e960d0ee50d6bd15cb51b22d6d1a00bd1`. Failures are the old native fixture expecting filesystem selection to remain unsupported, and the held-ID deadline fixture timing out before its terminal signal. Its callback asserts deadline before signaling; the original actual reason was not retained in that raw failure. Do not attribute that second failure to the unrelated hard-coded executable timer or fabricate the unrecorded reason. V43-to-v44 changes five production/test files, not just a timer; all failed roots/logs remain.
+
+V44 actual35/35 (7guardian/28managed),15621.654021ms, zero fail/skip/cancel, extract/npm-ci/build/test0, Node24.16.0/npm11.13.0 and empty stderr. Archive `fa2adcc26e6f6710240253f006efe0490ce17607bdf9cb7871e406c9a52d2b26`, manifest `f9c82cf28497f38a58b3c0d31dc0627dabec8749497e60d32dc27342a637faa2`:77 exact regular members/no extras/all77 current at verification. Frozen core-review27 manifest `bca783766ee773b43b0bc4f9a860c97842f8058ffe049a2ae844cdfbaba0bd6a` binds the actual code/tests plus current context docs. Same reviewer checks all five core corrections and the now-opened exact-fixture filesystem leaf; full control/profile inventory/authenticated recovery remains excluded pending work. The new final-close test and selector budgets execute, but35/35 alone does not establish a specifically held command-terminal/final-cleanup race. Root corrected an earlier progress sentence that overstated that test coverage; independent source/test review is still pending. This is compatibility evidence, not core or T005 acceptance.
+
+Worker's subsequent graph preparation adds exact FrozenArchive.expandedBytes and its fixture assertion only, leaving v0.2 resolution disabled. Reported host5/5 is an increment report, not captured final evidence. Those later source/test inputs are not retroactively part of v44; reuse v44 only for unchanged relevant core inputs and retain required final current checks. No lifecycle/Git transition or new diagnosis allowance.
+
+Independent v44 review verifies27/27 and closes all five original core production-source findings, including removal of the old executable create timer and preservation of selector-specific start deadlines/caps. It confirms v43's assert-before-signal hides the actual failure behind the timeout, without inferring the unretained original reason. Two concrete requirements remain: the newly opened filesystem selector only validates its fixture at prepare time then copies negative-probe paths, without retaining a dependent reference; fixture.dispose and provider.close can delete inputs before that prepared/running probe settles. These are provider-derived negative-path parameters, not newly accepted host bind mounts. Implement synchronous registered prepared-probe references, disposal sealing and dependent-drain-before-file-cleanup for this actually opened handle, preserving unknown references/files. The original owner/fixture/probe contract already requires this; no generic handle framework or expanded authority is needed.
+
+The second remaining P2 is direct regression coverage of command-terminal stop/inspect/publication still in flight when final cleanup starts. Current35/35 waits command completion before calling shared stops and therefore proves identity only. Add a controlled actual asynchronous terminal-stage hold, show no early rm/closed, release then preserve first reason/exit/counts once with all phase Promises finitely settled. The created-phase pending-Promise negative assertion and finally also need finite fixture-owned waits, preserving evidence on failure. Primary accepts these exact source/test findings and returns one correction batch to the same worker, preserving source closure but withholding core/whole-Task acceptance. Original full inventory/recovery/assembly/graph/final validation and both used diagnoses remain unchanged.
+
+##### T005 executable-probe protocol selection (pre-implementation, 2026-10-29 +08)
+
+The same implementer mapped the next accepted selector and correctly identifies a cross-module protocol prerequisite: the current guardian's only terminal finish removes the container and disconnects, whereas the already effective probe interface separates command completion from exact stopAndRemove. Root read that actual guardian path and selects [Executable probe protocol and dependency lifetime](../../planner/t005-build-serialization.md#executable-probe-protocol-and-dependency-lifetime): versioned private fixed-probe/v1, independent one-start command and monotonic resource lifecycle, nonterminal original completion with bounded streams, real detached workload exit rather than start-CLI success, fixed input phases processable during execution, and one final cached cleanup shared by execution/probe/provider/dependencies. Command cleanup may remain unconfirmed while the live guardian group prevents proof; final group/container cleanup is separately mandatory. No normal T002/T003/T004 message or public SandboxBackend behavior changes.
+
+Prepare validates and acquires opaque fixture/control dependencies without an intervening await, registers even unused prepared-handle cleanup, and disposal first seals new dependencies, then stops/drains all existing probes before unlink/close. Unknown cleanup retains ownership/references. Parent disconnect and fresh recovery remain cleanup-only, never executable replay. This concrete private protocol receives a narrow independent pre-implementation check against existing program/verification semantics before its complete supersedes brief authorizes code. The same worker meanwhile owns the three current configuration failure/terminal/test-finally corrections; no Task replacement, new diagnosis allowance, state transition or permission request occurs.
+
+The independent executable-protocol Plan check verified planner `08c41cebaa0d94dd6c27ba22ec97f734be163e05421f8eb7ff3936f4f5a1d613` and existing CPU/I/O/memory/network assessment ordering. It finds one P2 in the new wording: including a referenced control's own controller in probe cleanup would either create a disposal wait cycle or break the post-workload network health assertion. Primary accepts and corrects the ownership division: probe cleanup covers only its private container/guardian/attach/native/observer/fixed-control commands, then releases borrowed dependency references; it neither closes nor waits for the referenced handle's own controller/listeners. The referenced handle seals new uses, stops/drains its dependents, then disposes its own resources. Provider close confirms both layers; no reverse wait or early control shutdown. Add direct health-after-probe-cleanup and dependency-before-control-shutdown assertions. A narrow delta recheck must close this exact wording/ownership P2 before implementation release. The already checked assembly section is unchanged by this probe-only correction.
+
+##### T005 managed assembly integration preparation (read-only, 2026-10-29 +08)
+
+Reason for a bounded additional read-only analysis: the actual DockerImageAssembler still accepts a generic DockerCommandRunner, creates a temporary host template, copies source/generated directories, commits an image and removes its stopped container without the production ResourceOps dependency. The already effective T005 Plan requires these effects in the continuous session, but the current RuntimeResourceOps port has only native/probe/fixture/control capabilities. Root has read the actual assembler, ImageAssemblyRequest and BuildSessionOwner composition. A private assembly integration shape must be selected before that part is implemented; an injected generic argv callback is not itself ownership proof.
+
+The same independent reviewer inspected only this source integration and recommends one closed session-bound assembly capability with installer-private material provenance. It confirms actual builder/runtime call ordering after sealed content/generated output, but observes that ImageAssemblyRequest directory strings do not independently prove validated material. The generic runner cannot attest ownership; commit uncertainty must survive CLI/container cleanup. Root accepts these source facts and selects [Concrete closed assembly capability](../../planner/t005-build-serialization.md#concrete-closed-assembly-capability): private real-object WeakMap registration inside PackageInstaller, lookup-only trusted adapter access, assembleFixed of an opaque prepared input, authenticated assembly-resource/v1 with complete material/owner/phase proofs, managed fixed-copy-commit/v2 receipts, exact successful-create binding before copy/commit, fixed10-second command bounds/120-second total admission/separate10-second cleanup, and no retry or retirement of unknown commit. Existing-image verification remains read-only and does not compare the old receipt candidate to the new session candidate. This resolves the three private interface/record/deadline choices; it does not change package/profile authority or erase required recovery.
+
+The selected assembly contract requires a narrow independent pre-implementation check before its implementation. A separate read-only Sol reviewer checks only this selected private capability/persistent-format/deadline contract while the existing reviewer completes the actual configuration-probe lifecycle review; the distinct risk and aggregation point are assembly authority/unknown commit, accepted by root before assembly code. Root has supplied the same T005 implementer a complete supersedes brief for the material private-interface extension, with assembly implementation explicitly waiting for this check. No assembly implementation through the generic runner is accepted by this preparation. Current fixed-probe work continues independently under the complete brief and recorded local lifecycle corrections. T005 state, whole-task acceptance, both used diagnosis allowances and all original requirements remain unchanged. This planning work executes no VM/network workload and introduces no separate material database, framework or expanded package-selected paths/commands.
+
+The independent assembly-contract check verified planner `bd6ed6b81ee35637001f72031515ae4ebfee9e7d224dded4df3609e951b9db17` and actual assembler source, and found one concrete P2: the prepared-input registry covers new assembly but SealedImageVerification has no independent expected material identity. An adapter could otherwise compare a receipt's material fields only to themselves. Primary accepts the finding and extends the selected private wiring with a separate real-object verification WeakMap registered only after PackageInstaller's full retained-material/outer-receipt checks. It binds the current owner, independent original candidate and expected material/catalog/input/output/lock identities. Original candidate is derived and validated from the trusted registry's canonical seal references, with matching outer payloads and purpose-specific paths; it is not taken on trust from the inner receipt and need not equal the new session candidate. No public port or registry-format change, arbitrary registration API, new database or assembly/deletion authority is introduced. A narrow delta recheck must close that exact contract finding before assembly implementation is released.
+
+The same independent assembly reviewer verified updated planner `08c41cebaa0d94dd6c27ba22ec97f734be163e05421f8eb7ff3936f4f5a1d613` and closes the verification-material P2, with no remaining actionable P1/P2 in that selected contract. Primary accepts only the managed-assembly private interface/provenance/record/deadline contract. Implementation, full authentication/recovery and all original negative/concurrency/crash/Linux acceptance remain pending. Root will release this assembly precondition in the next complete implementation brief, together with the independently checked executable-probe protocol; the same worker can continue the current configuration corrections meanwhile.
+
+The independent protocol reviewer verifies final planner `82dfd78d1208f9c168b14f677fa67d392fcd5d7d931f87a3290377d8c7afb8ba` and its exact diff from the saved08c41 version: only the reviewed probe/private-versus-referenced-control ownership correction and direct assertions changed. That P2 is closed with no new actionable P1/P2 in the selected protocol. Primary accepts the executable-probe protocol and managed-assembly contract for implementation, reusing the separate assembly check because its section is unchanged. This closes only the two pre-implementation contract conditions. Root supplies one complete supersedes brief releasing those conditions to the same T005 implementer; the three current configuration code/test P2s remain acceptance requirements, followed by the entire original implementation/recovery/final-validation scope. No user approval, new diagnosis allowance, lifecycle transition or code acceptance is implied by these contract reviews.
+
 #### T006 — 条件激活、升级回滚与移除
 
 - **规划准备**：候选契约见 [planner/t006-lifecycle-contract.md](../../planner/t006-lifecycle-contract.md)，T006 仍为 todo；需 T005 实际 schema/API 对齐后才能成为有效实施输入。独立只读架构检查发现并已在第二次定向复核确认关闭两项 P2：撤销 workload lease 不得阻断可信历史任务取消/观察/对账；选择事务必须与 collecting 标记互斥并持续持有准备引用。无剩余该两项契约 blocker，不代替后续代码、真实 Linux、独立 code review 或主 Agent 验收。草案另补共享 SandboxManager 候选：单 configured root 的唯一可信进程/私有 lease、跨 image 持久预算、首版 qualification 与实际 workload 互斥、未知旧 owner/guardian 保留预留；新增组合契约已完成下文所述独立复核并关闭资格资源前置 P2，仍须 T004/T005 实际 API/schema 对齐后才成为完整实施输入；契约通过不代替实际代码验收。
@@ -939,7 +1317,7 @@ Add the real preflight crash boundary to the already required cross-process/cros
 - **交付**：串行化单installation的激活/回滚/移除；generation+expectedActiveDigest条件切换与持久attempt；运行任务保持内容引用；权限变化独立于包指针。
 - **完成条件**：A候选迟到失败不覆盖B成功，升级/删除竞态不复活已移除包；崩溃恢复只有正确活动选择，GC不删运行引用；新增权限不继承，回滚不复权；移除失效代理/清理私有scratch/cache且保留非秘密审计，外部OAuth明确独立。
 - **验证环境 / 方法**：Linux安装fixture + 两候选/移除同步屏障，逐步崩溃与重启；核对active generation/digest、运行内容、grants/keys与GC引用，不以单次顺序成功代替竞争测试。
-- **授权 / 设备前置**：后续Build授权，无设备/账号操作。**usage**：USE-003的权限差异、回滚和移除恢复；不能承诺回滚撤回副作用。
+- **授权 / 设备前置**：SRC-09 已覆盖本 Task 的本地/专用 VM 实施和受控验证；T005 验收后连续推进，无设备/账号操作。**usage**：USE-003的权限差异、回滚和移除恢复；不能承诺回滚撤回副作用。
 
 #### T007 — 受限 AgentBackend 与本地 MCP 生命周期
 
@@ -949,7 +1327,7 @@ Add the real preflight crash boundary to the already required cross-process/cros
 - **交付**：固定pi候选版本的受限工具目录/事件适配、确定性模型transport fixture、本地stdio MCP在各自沙箱启动；不把市场npx/第三方模块载入可信core。
 - **完成条件**：正常工具调用走admission；描述/返回prompt注入无增权，MCP工具列表变化不能自动加权；初始化/调用超时、stdout协议、stderr/输出长度、schema/事件ACL/backpressure与子孙取消受控；task查询与管理端越权拒绝。
 - **验证环境 / 方法**：Linux已合格profile + malicious MCP/agent fixtures，正常、空输出、超时/断连、洪泛、旧epoch/版本不兼容与隐藏私有发现用例；模型调用数为0。若pi不兼容先返回证据更新方案，不绕过可信校验。
-- **授权 / 设备前置**：后续依赖/Build许可；无模型API、账号/设备。**usage**：USE-001/002的受限Agent/MCP入口和unsupported状态。
+- **授权 / 设备前置**：SRC-09 已覆盖本 Task 的必要依赖、本地/专用 VM 实施和受控验证；无模型API、账号/设备。**usage**：USE-001/002的受限Agent/MCP入口和unsupported状态。
 
 - **后续组合准备（2026-10-28）**：固定768 MiB Agent与1024 MiB renderer不能同时进入1536 MiB预算，SDK tool callback若同步等render而保留Agent/持久MCP会形成资源相互等待。候选首增量明确Agent按turn有限运行、MCP一次invocation一个session；T008 present须在原caller lease活跃时经正常admission dispatch到可信DisplayCoordinator，后者持久accepted/waiting-resources与有界operation context/独立内容引用，才返回ack。确认该turn Agent/MCP清理后，coordinator按当前权限/revision/租期/预算推进内部render阶段；不是让尚未dispatch的generic queued task绕过已失效caller lease，也不恢复旧channel。未知占用保留，其他peer不被强停；accepted与rendered/imported/submitted/visible分开，重启不重放Agent/MCP或unknown dispatch。候选细节写入T007/T008 notes，仍须对齐实际T006/T007 feature/schema/事务authority并独立复核；不推进任一todo Task或当前T004代码范围。
 
@@ -963,7 +1341,7 @@ Add the real preflight crash boundary to the already required cross-process/cros
 - **交付**：两页公开/合成日程Scene + next/back/close，冻结state/time/seed逐帧渲染、bounded FFmpeg/验证/Artifact发布/模拟导入呈现；video/web模拟profile复用相同state/action。
 - **完成条件**：遵守Scene规范、保留Chromium sandbox、无音轨；重复帧hash一致且时间改变目标像素，MP4 byte identity另测不混淆；外部资产/host scheme/无效action/超额timeline拒绝；半文件/错digest/跨app产物不发布，旧未发revision丢弃，四类显示证据分开。
 - **验证环境 / 方法**：真实Linux render profile + 固定浏览器/fonts/codec，成功/忙/空/失败和乱序/取消/encoder OOM用例；准备并运行已提交tester-army/e2e Web engine固定viewport测试与确定性结果断言，截图/帧/trace仅证据。无模型调用、无真实WebView支持声明。
-- **授权 / 设备前置**：后续依赖/Build/Linux许可，无设备/账号。**usage**：USE-004解释state驱动切页、frame/profile参数来源、私有cache规则及SIM证据范围。
+- **授权 / 设备前置**：SRC-09 已覆盖本 Task 的必要依赖、本地/专用 Linux VM 实施和受控验证；无设备/账号。**usage**：USE-004解释state驱动切页、frame/profile参数来源、私有cache规则及SIM证据范围。
 
 #### T009 — ConnectorBroker 与只读 Mock 业务闭环
 
@@ -973,7 +1351,7 @@ Add the real preflight crash boundary to the already required cross-process/cros
 - **交付**：受限只读日程语义操作、账户/范围映射、实例代理、刷新单飞/重放与响应过滤；分开读授权与模型披露策略。评估固定authsidecar适配所需差异并记录候选，不把demo当权限服务。
 - **完成条件**：允许/空数据结果、离线/刷新失败可辨；method/path/query/body/资源/身份修改、重放/过期key、伪造合法代理签名越权均拒绝；合成凭据不入workload/log；未授权外传在模拟route拒绝。
 - **验证环境 / 方法**：复用 T004 已合格的 `tool-offline` + supervised stdio connector 通道，合成秘密/隔离Mock API/刷新并发，绕过CLI直接构造请求验证broker；记录实际操作计数和秘密canary扫描。首批只允许可信 broker 访问 Mock API，不增加 network-enabled `connector-readonly` profile；该命名 profile 仍为后续提案，不能把 offline 子集称为已完成网络例外资格。这里不验收真实Lark OAuth或官方CLI兼容。
-- **授权 / 设备前置**：后续Build许可；真实只读Lark CLI/账号接入需明确授权、scope/凭据策略和独立实际证据，未满足保持未支持；不作为Mock验收前置。**usage**：USE-005区分Mock与live。
+- **授权 / 设备前置**：SRC-09 已覆盖本 Task 的本地/专用 VM 实施、Mock 和受控验证；真实只读Lark CLI/账号接入需明确授权、scope/凭据策略和独立实际证据，未满足保持未支持；不作为Mock验收前置。**usage**：USE-005区分Mock与live。
 
 #### T010 — T1 设备基线与受信适配器探测
 
@@ -1014,6 +1392,10 @@ Add the real preflight crash boundary to the already required cross-process/cros
 
 ## 实现记录（实际）
 
+- **T005 v72 follow-on conformance corrections (2026-10-29 +08; worker-observed checks, unfrozen inputs)**: Same worker reports complete retained-material preflight now precedes all verification registrations/calls, with separate build regressions for altered generated bytes and builder receipt candidate and no increased assemble/verify counts. Worker reports pinned Node24 formatter/lint/build and installer+session-runtime61/61 exit0, but this changed input has not yet been archived/raw-evidence verified by primary. One attempted `npm run lint -- --max-warnings=0` exit1 was an invalid TypeScript CLI option; correct lint subsequently exits0; retain this command history. Primary also read the new managed image verifier and found an ephemeral image candidate-label requirement inconsistent with existing shared-image semantics. Worker removed that check; canonical original seal/receipt candidate checks remain, temporary containers/writers keep exact ownership labels, and final image proof uses semantic package/material/purpose/source labels. This is conformance to the existing released Plan, not a new shared-image contract or a reset of history. Actual fixed assembly, keeper/fresh recovery, full qualification migration and graph remain in progress and unaccepted.
+
+- **T005 fresh-recovery physical ownership implementation choice (2026-10-29 +08; selected, not implemented/accepted evidence)**: Primary read current fixture ownership and identified that parent-only retained FDs disappear on installer SIGKILL; HMAC and persisted dev/ino/mode/hash cannot recreate that physical authority. The same worker proposed, and primary accepted within the current released Plan, a closed per-persistent-fixture keeper/cleanup writer: authenticated intent before fork, original idle PID/start/group persisted before fixed creation authorization, original directory/file FDs retained by that writer, parent-loss permits cleanup only. It writes a separate versioned/domain-separated authenticated terminal receipt bound to original resource/session/boot/writer identity; it does not race-write the central journal. A fresh owner verifies original receipt and actual writer/group exit, performs no path-based unlink/rename and gains no execution authority. Missing/unknown receipts, live writers or finite cleanup/wait timeout retain the reservation. Assembly templates needing post-parent cleanup follow the same mechanism; keys/SQLite/evidence stores remain control evidence. This concretizes existing original-writer/FD/recovery requirements, changes no scope or Plan SHA and uses no additional diagnosis. Full code, physical replacement negatives and actual SIGKILL acceptance remain required.
+
 - **T001（主 Agent 已接受）**：建立 npm workspace、锁文件、TypeScript/Prettier 与 Node 原生测试入口。实际测试解释器为本机已有的 Node `v24.16.0` / npm `11.13.0`，而非未验证下载的较新 Node 24 补丁版本；该 Node 的 `node:sqlite` 已实际创建、写入并读取 SQLite 表。固定开发工具为 TypeScript `5.9.3`、Prettier `3.6.2`、`@types/node` `24.10.0`，完整解析版本、完整性值和许可证见 `package-lock.json` 与 [第三方声明](../../THIRD_PARTY_NOTICES.md)。
 - **最小实现**：`packages/contracts/` 定义严格、版本化 JSON-RPC DTO 和唯一允许的 `sim.status.read/v1` schema；`packages/supervisor/` 只向 Core 传入其创建的 installation/instance/boot/epoch/channel binding。调用参数中出现 `principal`、`grantId`、`ticket` 或 `instanceId` 会在 admission 前以验证错误拒绝。
 - **可信路径**：`packages/policy/` 使用本地 SQLite 的 `WAL` 与 `synchronous=FULL`，在调用 provider 前持久化 request digest、input scope、policy generation、grant、admission 和 task；审计只保存关联的 opaque ID、digest 和 outcome。同一主体/能力的任一 active `deny` 优先于所有 active `allow`，不因后续 allow 隐式停用旧 deny。`packages/core/` 只依赖 contracts 中的 `ReadonlyCapabilityProvider` port；`adapters/reference-simulator/` 由受信 fixture 注入，独立维护实际操作计数。provider 调用或结果 journal 出错后，admission/task 保留为 `unknown` 并返回净化的不可盲重试错误；admission 写入失败则在调用 provider 前返回可安全重试的服务不可用。T003 仍拥有并发、取消、崩溃恢复与完整状态矩阵，不能从本实现推断已完成。
@@ -1025,6 +1407,66 @@ Add the real preflight crash boundary to the already required cross-process/cros
 - **失败史与清理**：这一次最终 Linux suite 的首次运行在 T002 output-limit container cleanup 以 `The fixed-profile workload container could not be removed.` 失败；Docker events 显示该 output container 后来 stop/destroy，`docker ps -a` 已为空。没有将该单次现象归因于环境；在同一 manifest/image、无残留容器条件下进行一次有界重验后通过。保留首次失败、Docker events、成功重验与全部 VM 原始日志于 `artifacts/private/t003-20261026/vm-final-logs/`。完成后只删除本任务拥有的三个 `/tmp/qdroid-t003*` VM source roots，并复查 `io.qdroid.sandbox` label 没有残留 container；未改 sandbox profile、权限或 runtime qualifier。
 
 ## 验证记录（实际）
+
+- **T005 primary independent pre-assembly host cumulative (2026-10-29T06:31:08–06:31:39Z; narrow source review pending)**: Primary froze117 exact regular public inputs before execution; source-only USTAR archive `05bf5821302e612aa1b187c223e1644458997fef5588483153e895af6b766f63`, JSON manifest `b2956449f025c42673c06ff5d39b09fc3f721c9ce821ca4342bd247b26f6b073`. Node24.16.0/npm11.13.0 actual versions, `npm ci --ignore-scripts --offline`, format:check, lint and `npm test` (including build) all exit0 without timeout; raw stderr files are empty. Cumulative204 tests:196pass/0fail/cancel,8 actual Linux-conditional skips,25202.095875ms; stdout SHA `73b4f789a937e101f8e73a0138988029f2d14f243031f9d6bc825571470e325b`. Both generated-file and builder-receipt corruption regressions actually pass. Primary saved exact command arrays, finite process-group ownership/time limits, versions, results and raw logs; tested117/117 source hashes remain unchanged after the run. At audit the live ResourceOps and guardian-worker already have later implementation changes, so this does not qualify those new inputs or claim final/current Linux acceptance. No VM job was run by primary. Same independent reviewer is checking this frozen preflight/HMAC/readonly-verifier delta only; full original Task remains in_progress/uncommitted.
+
+- **T005 v72 managed assembly identity host evidence (2026-10-29 +08; narrow independent review pending)**: Primary verified the actual pinned Node24.16.0/npm11.13.0 raw commands and exits: offline ignore-scripts npm-ci, format, lint, build and installer all exit0;76pass/0fail/skip/cancel,24012.578583ms, all stderr empty. Original archive `e599b552f9b8a6c0f732cd1dcb2e84ab99b2f6d573e360065b99acd8ba1e739e` contains82 manifest-listed source files plus82 unlisted macOS AppleDouble regular entries; therefore the worker's original exact-member claim is corrected. Manifest `56625cfecf29ae871809275f31111195601d58ca6b23b13186f917dd7ee3e165`. All82 source hashes match the original archive, retained source and actual extracted test work directory. Primary preserved that original evidence and repackaged only the same verified82 regular sources as `source-reviewed-exact.tar`, SHA `44f09632ca74ef044e77a9ca2c637593a32b1d7fc22905b156fa6259c0482ad1`; no tests were rerun for packaging. At audit the live index/resource-ops/session-runtime test have subsequent legitimate implementation changes, so this is evidence for the frozen v72 inputs only.
+
+  The v72 delta adds private owner-bound prepared assembly and separate readonly verification registrations, the managed default adapter, original canonical seal-reference provenance and receipt-candidate tamper rejection before additional native calls; independent source review is pending. It also changes publication child completion to stdio `close`, addressing the last v70 fixture finding. Actual production ResourceOps assembly/qualification/recovery and executable graph remain in progress under the same complete original worker brief. No actual VM/full T005 acceptance, state transition or commit is inferred from this host suite.
+
+- **T005 v69 pinned host publication/authority regression (2026-10-29 +08; independent delta review pending)**: Primary read raw runner/versions/commands/exit/stdout/stderr and verified exactly82 regular archived source files with no extras; all82 also match the extracted test work directory, retained source and current workspace at verification. Archive `fbef13445fab069e44dd24e8cecfc64e44b66c88a20ba9dcad0bc4493b4316c8`; manifest `2cb77744887b12e425f423ca3b1cc0f9b38053dd3a9086a3d29893edfbd59695`; stdout `81cbf012daf822eadafde6d9d897809905d4d13a9205461ba0f09620bdf76e5d`. Node24.16.0/npm11.13.0; actual offline ignore-scripts npm-ci, format, lint, build and full installer suite all exit0,73pass/0fail/skip/cancel,23792.898083ms, all stderr empty. The initial read-only audit assumed v68's extra manifest entry and failed its count assertion; v69 actually contains only the82 exact sources, and the corrected exact-whitelist audit passed. V68 failure/source/roots remain unchanged.
+
+  The same independent reviewer is checking the last four v66 source/test corrections against this actually executed frozen source. Passing host publication/authority and synthetic executable tests are not production Linux package installation: full ResourceOps profile/network/boundary/control ownership and authenticated recovery remain absent/fail-closed, managed assembly and executable dependency graph remain incomplete, no VM job ran for this increment. Original full current-input Linux/cumulative/USE-003/final independent review and primary integration acceptance remain required. T005 is not done or committed.
+
+- **T005 v68 first pre-run snapshot/raw-runner evidence (2026-10-29 +08; failed, retained)**: Primary read actual Node24.16.0/npm11.13.0 commands, versions, exit files and raw stdout/stderr. `npm ci --ignore-scripts --offline`, format, lint and build exit0; installer exit1,71pass/2fail/0skip/cancel,23801.618791ms, all stderr files empty. The dependency command is exactly the offline form, without no-audit/no-fund; no altered command is inferred. Archive SHA `2740c40b015f4b803e7d088b2b11d92369766c3089b023f3997c1c5db09499a6`; manifest `27da1e5af87030c2384bf31a26a6fde15e08b080df405a28dd86f1de99570b14`; stdout `a116590871a3e7eefd457194c283ad02cdec7bf8a36c3e09740d716183238223`. Primary verified82 exact regular source files plus the exact manifest and no extras, and all82 still matching the actual extracted test work directory after the run. The first read-only count assertion omitted the deliberately archived manifest and failed; the corrected verification explicitly allows only that exact additional file.
+
+  Both original failures have observed localization: the dual sync/close regression fails in MockTracker before product code because FileHandle.close is not on the mocked prototype in Node24; the independent child-paused case sees exit1 despite successful release because the frozen helper's common normal-completion tail unconditionally sets exitCode1. Worker is correcting those fixture branches without changing production isolation. Actual FileHandle.sync rejection, real SIGKILL publisher, malformed metadata and same/independent publication cases pass in this failed suite, but do not override the two failed conditions or final fixture review requirements. The failed child-pause root and all raw/source evidence remain retained under `artifacts/private/t005-host-20261029-publication-authority-v68/`; live index/tests/crash helper already differ by legitimate corrections. Full original runtime/recovery/assembly/graph/Linux/CLI/final acceptance remains pending; no task transition or commit.
+
+- **T005 publication v64 host evidence and runtime replacement (2026-10-29 +08; not accepted overall)**: Primary read the actual saved command/exit/version/stdout files: Node24.16.0/npm11.13.0, `node --test dist/tests/packages/install/*.test.js`, exit0,62pass/0fail/skip/cancel,22112.461417ms; format/type checks exit0 and all three stderr files empty. No saved build command is present in that directory. The source subset was saved after the run; original worker reports it unchanged, and primary verified28 exact regular archive entries, all SHA-256 values and all28 matching current source on resume. Archive `5c1aac1f839cb153c863989f488479a3e8583230433a521eacde8b43c96f13eb`; manifest `1e722de221f051580316ab72789909ac5ca7b6d52c75b70bcddc394426ef8805`; stdout `d4313ef3cc93ce16c674eec1c8398f44f1729b09d26867e920dbef3bd94d926f`. This is a28-file review subset, not proof of a whole transitive build-input archive. V63's earlier6-pass targeted report has no located raw archive and stays worker-observed. Frozen28-file independent publication/registry review manifest `5516de4be297ac7e4788c89dfb0b37b130e81ae802bdea250452d4016d9c9ae8` is pending. The approved publication Plan remains `255161d92acab4df9e4716311c5c23a7d1438af9a4a5600d18ec92800f6e0ef7`.
+
+  The current runtime inventory after interruption contained only primary; original implementer/reviewers were unavailable. Primary supplied a complete replacement brief to a new Terra worker for the same original T005 and a separate Sol read-only narrow review. This replacement resets no acceptance objective, failed attempt or used diagnosis allowance; VM-preflight, root-replacement and content-publication allowances remain used. Complete production provider/authenticated cleanup-only recovery/managed assembly/executable graph/Linux cumulative/USE-003/final independent review and primary integration remain required. No T005 completion/commit/push is claimed. GitHub comment was updated through already-authorized `gh` after the connector read succeeded but comment-write returned403; all previous text remains preserved.
+
+- **T005 retained host graph lifetime/budget history checked (2026-10-29 +08)**: Primary read v55/v56/v57 raw versions, statuses and installer stdout. All use Node24.16.0/npm11.13.0 and have empty check stderr. V55 actual30/30,5303.715625ms and all four exits0 includes the held-read abort/raw-settlement retry refusal. V56 actual30pass/1fail,5647.554208ms, installer1 with format/build/diff0; the failure originates in createGraphPackageBundle/readFrozenBundle during fixture preparation (`transport exceeds16MiB`), not an accepted product-limit result. V57 actual31/31,9213.038875ms and all four exits0 includes separate aggregate transport/expanded rejection and raw-read lifetime cases. No exact source archive for these historical runs is claimed; later v61/v62 snapshots bind later code, not retroactively these inputs. Retain their actual scope/failure history and use appropriate current-input checks after implementation rather than rerun unchanged history for reporting.
+
+- **T005 content-publication diagnosis result and selected recovery method (2026-10-29 +08)**: The single v62 experiment completed within its declared8-minute window. Primary read actual build0/diagnosis1/post-inspection0, pinned Node24.16.0/npm11.13.0, empty stderr and both original installer outcomes: second rejected missing input inventory at103ms; first fulfilled/published at271ms; all settled by272ms with complete frozen source and all six metadata sidecars. Read-only inspection shows one v3 disabled root row. This localizes adoption exhaustion while the publisher remains active and rejects the permanently failed publisher alternative in this experiment. The test originally deleted its root on early failure; v62 retains it and observes both actual settlements. No continuing job/timeout/shared service change/VM/retry occurred. Root verified77 exact regular members, archive `c72ddd4de93e45a14af0086871d2c641f94747af7fa0bff3b25acf6e2a54cf8a`, manifest `9dc630fdadcaba99b090cb30b7ca8e2e9fcfd2de8232942be7bcc825e5fa3003`, stdout `ccc969a3c7be0acce35eb0dee3fbfebc746737d798626cb73cecba95b2bcb6f8`. Only installer test differs from v61; production index remains `1a8e088e44a524f01662d4c69546b31bd0f2f6ac14393bc460bc5b992312b9fa`. Original root/raw evidence stays private and retained.
+
+  The now-used content-publication diagnosis allowance and all earlier publication/adoption failure history remain. The effective selection is the new content-publication section in planner/t005-build-serialization.md: one canonical root-scoped physical SQLite publication lease, asynchronously bounded acquisition, all source publishers/adopters participating, full no-follow content/sidecar validation before release, no metadata polling or destination-exists error conversion, no runtime/grant/cleanup authority inferred from this lease. Original paths/identities/BuildAuthority/short registry transactions and authenticated cleanup-only recovery remain. The independent reviewer verified Plan SHA255161d92acab4df9e4716311c5c23a7d1438af9a4a5600d18ec92800f6e0ef7 and found no P1/P2 or lock-order/authority conflict. Root accepts that contract and releases the stopped production correction through a complete supersedes brief to the same Terra implementer, preserving all original T005 duties and used allowances; unrelated T005 work remains authorized. No task acceptance, commit, replay or new privilege is created.
+
+  Independent v61 review verified27/27 frozen inputs and closes graph-material bound/pre-publication validation plus final-deadline abort. Registry rejection is partly corrected but still mistakes a same-name view/other non-table schema object for an empty namespace. Root accepts that concrete remaining P2 for the same worker after the diagnosis; foreign/incomplete schema must be unchanged before rejection. Primary also ran a pinned Node24.16.0 in-memory SQLite check (no product execution or database file): an uppercase PACKAGE_VERSIONS view is missed by exact lowercase name equality, found with NOCASE, and CREATE TABLE IF NOT EXISTS lower-case name returns without replacing it. The frozen v61 helper uses exact name equality. The worker received this observed SQLite identifier-alias condition for the same namespace correction and new lease initialization; schema recognition must not misclassify such objects as empty. Targeted3/3 is not the stopped full installer suite. T005 remainsin_progress, uncommitted and unaccepted.
+
+- **T005 concurrent-content stop and one bounded diagnosis (2026-10-29 03:27:46 UTC to 03:35:46 UTC)**: Same content publication/adoption problem and acceptance objective retains all earlier publication/adoption failures; graph naming does not create a fresh history. Worker stopped after v58 actual EACCES rename, v59 actual missing input inventory, and v60 same inventory failure after32 event-loop yields (each32/33, not whole-suite acceptance). Primary read the raw failures and current source. The prior root-replacement and VM-preflight diagnosis allowances remain used; no content-publication diagnosis was previously invoked. This is the one allowed diagnosis for that problem. Worker is idle after its returned report; no shared service/job is stopped.
+
+  Falsifiable hypothesis: adoption exhausts event-loop turns before a still-running publisher finishes sidecar sealing; Promise.all then rejects and the fixture's unconditional finalizer removes the root while the other installer is still writing. Alternative: the publisher itself fails and never seals metadata. Minimal experiment: keep production index unchanged, instrument only the existing concurrent test to immediately observe each original installer result, finitely await both actual settlements before any cleanup, record each error and relevant destination/sidecar state, retain the root on any failure, and run that single affected case once on the pinned host. No production fix, full suite, retries, VM/network or old-root cleanup. A bounded caller timeout must not delete a root with unresolved raw operations. Same Terra worker executes this finite test-only experiment under existing local authorization. If it yields no causal localization within the window, stop the affected segment and report for direction; do not append experiments or renew the allowance. If it does localize, primary updates the effective Plan and sends a complete supersedes brief before production correction.
+
+- **T005 v53/v54 host content-graph increment; review pending (2026-10-29 +08)**: Primary read the retained raw host commands, versions, exits and stdout/stderr. V53 has27/27 installer tests,4770.288375ms, Prettier-check/build/installer/diff-check0, pinned Node24.16.0/npm11.13.0. Its exact77-member archive is `91867a3dccf9668fabc4f5907b8dd252f53238648cf47123511e001151cbfb3a`, manifest `7861ffa84452b5b15e09990aec57b6c416c810fb1fb245297bc4733379bae8fe`, installer stdout `3932e4166e213147c0ea19b9cc5b6e079c55ca53e5063070c2bd2191bfc2749a`. At verification one later legitimate installer-test change differed from that snapshot; the production index did not. V54 adds retained-child-corruption and v2→v3 migration tests with identical production index. Actual29/29,0fail/skip/cancel,5133.336458ms; the same four exits0 and all four stderr files empty. Archive `92ea5dc9d07c314922b89650f0a76e8f7dcb6dd318455e117ecc94b4ff433d5d`; source manifest `61789202993d3251969ed9554930ed27513a11850dc025b53c151099d0d0bed6`; stdout `10d71589ddbb1c3427f0b4ea6e5958e9f8b39fc66febcf4e2510d2e44ed4e968`. Primary verified77 exact regular members/no extras/all-current for v54. Actual production index digest is `0dd234d0bac08de38675502fdd4b8cc62858145369619c058d00d3ff75053469`.
+
+  The increment adds the post-normalization/hash total deadline check and direct trusted-clock regression, shared-topology8/9-edge tests with fetch-once, content-only graph material/sealing, one disabled root row, graph reuse validation, and namespaced registryv3 nullable graph references. Executable graph materialization remains explicitly unsupported. Independent review uses frozen27 manifest `91e13ce2a07f8c0d54aac5cb207660a9ca9cd7060d10502a18a84134ef2aed43` and checks the deadline residual plus this new content/registry persistence path. These are host installer/fixture tests; no Linux executable install, full qualifier, authenticated recovery or whole T005 result is inferred. All original held-read/late-settlement/budget/migration-policy-history/concurrency/crash/managed assembly/executable closure/current-input cumulative/USE-003/review/primary acceptance obligations remain.
+
+  Earlier raw host failures are preserved, not replaced by the pass: v50 Prettier2 from artifact cwd/path lookup, build1 with TS cast/literal-type errors, installer125/not-run, diff0; v51 build/Prettier/diff0 and installer1,25pass/2fail, errors report immutable-content reuse conflict and a stale empty-root expectation; v52 same successful preparation and installer1,26pass/1fail, SQLite null-prototype strict assertion mismatch. Worker attributes the reuse conflict to candidate-specific graph-material paths/digests; no independently verified v51 source archive is claimed. V53's changed-source manifest and frozen archive bind the successful source. Existing failures/diagnosis history remains; these observed distinct build/runtime/assertion failures are not a new allowance. Same implementer retains complete T005 ownership; root owns Plan/state/Git and final acceptance.
+
+- **T005 v49 fixed-probe correction accepted; graph partial source closure (2026-10-29 +08)**: Primary verified77 exact regular archive members/no extras/all-current at verification. Archive `dd8104743563e4fbbf907cb5f72a6364ce6d0e9a3ee617880cf90d00fba9a240`; source manifest `c166ac33d77032d90f6732ee11b7945cf8ab94f754190f2cc325c8913c996ec8`; stdout `d862b5a404c8f5d41cde4ab651026b23963d34b9b2339e3bd83227d1ef277304`. Actual guardian-native/managed-resource Linux37/37,0fail/skip/cancel,18663.673885ms, extract/ci-ignore-scripts/build/test0, Node24.16.0/npm11.13.0, empty stderr. V48 is prepared-not-run, preserved without an inferred result. Host33pass/1expectedLinuxskip and earlier fixture failure causes are worker observations without saved raw stdout/stderr; no historical logs are reconstructed or equivalent runs requested solely for reporting. Future necessary/final host runs must retain actual commands/versions/exits/stdout/stderr/input identities.
+
+  Both independent reviewers verified frozen27-file manifest `9de9db36baab04369925f3473164eed175c7793e636f25b6301def715a3e95e0`. The guardian reviewer closes the original finite-wait P2: created/held-terminal create/start/stop/result/completion waits are finite, with timeout outside expected business rejection. Previously accepted single-inspection discrimination, independent finally failures/environment restoration/evidence retention remain. Primary accepts the narrowly scoped fixed-probe terminal-ordering/regression correction together with the actual component run; production guardian/resource code is unchanged from v46. This does not accept full provider/qualifier/fresh recovery or installer behavior.
+
+  Separate graph review closes the shared-suffix source defect and optional manifest dependencies. Absolute deadlines now close the original synchronous-late-source window, but the same deadline P2 remains after the final check: node sorting/semantic identity/canonical JSON/digest computation still precede an unchecked return. Same implementer must construct the complete result, check the total absolute deadline inside the abort/error scope, then return. A final-normalization/hash-crossing regression is required; strengthen the existing depth tests to a shared-topology8/9-edge boundary pair. Original held-read/late-settlement/cancellation/no-late-effects and full graph/install requirements remain. These graph conclusions are source/test-design reviews; Linux37 covers guardian/resources only, and no raw host graph run is yet accepted. Materialization/publication remains explicitly unavailable, registry remainsv2, T005 staysin_progress and uncommitted. Original failures and diagnosis allowances remain controlling.
+
+- **T005 v47 current component run; terminal-test residual and graph corrections pending (2026-10-29 +08)**: Primary verified77 exact regular archive members/no extras and all77 matching the working tree at verification. Archive `01834ca0db83d2730c15207aead58964c6413ba9c1770d2c1b9ff1baf2b5d749`; input manifest `4b392913d561883448af12c7b0f40f82568964f202158b5ab7fb996d930130c8`; stdout `0396fd24119167ef9e20b97a8ba4e8f140e72daf821a363a02290702534e4b55`. Actual combined guardian-native/managed-resource Linux37/37,0fail/skip/cancel,18310.618219ms; extract/ci-ignore-scripts/build/test0; Node24.16.0/npm11.13.0; stderr empty. Frozen27-file manifest `74748e7d57aec554e9eb7ccc7b801ba2c5f18cf12a9101430c6137ea5166d39d` is the independently reviewed input, not a whole-install claim. Production guardian/resource code is unchanged from v46; the changed guardian test now uses a first-inspection barrier and bounded failure cleanup. Independent review verified27/27 and closes the single-inspection barrier and failure-finally corrections. The original finite-wait P2 remains at created-phase assert.rejects(probeCommandCompletion) and held-terminal start/stop calls: an indefinitely pending phase can prevent entry into the bounded finally. Root sent one minimal same-contract correction batch, retaining expected error discrimination and the original failure history. Production code is unchanged. Worker reports an initial fixture failure caused by command completion preceding the fake-Docker rm log and a host guardian7pass/1Linux-skip plus installer23/23 run; primary has not yet read original host/failure logs and requested existing evidence without reporting-only reruns.
+
+  The same snapshot includes a separate v0.2 schema/resolver increment and tests. It rejects all graph materialization/publication explicitly, retains registryv2, and is not graph installation support. The prior graph-contract reviewer independently verified the same27 frozen hashes and confirms three P2s in that implemented resolver: cached shared-subtree returns omit suffix depth; v0.2 optional manifest dependencies are incorrectly required; provider invocation precedes timer creation and no absolute elapsed-deadline checks follow synchronous reading/validation or final graph completion. Primary checked these against the already approved Plan and sent one correction batch to the same implementer. Preserve fetch/decode-once with full-DAG longest-rootpath≤8, normalize only omitted manifest dependencies to[], and enforce the original5s/source and30s/graph absolute deadlines before accepting late synchronous results; keep cancellation/raw-settlement/no-late-effects rules. Required direct regressions distinguish depth8 from a shallow-first shared path>8, omitted from invalid dependencies, and elapsed deadlines from timer callback scheduling. No tests were run by this read-only reviewer. These are corrections to existing requirements, not new graph execution authority or a change to the WIP refusal. No material Plan change, task transition, external authorization or new diagnosis allowance is created; full original T005 provider/recovery/assembly/graph/current-input host/Linux/cumulative/USE-003/review/integration acceptance remains.
+
+- **T005 fixed-probe v46 component evidence; fixture dependency accepted, terminal-test correction pending (2026-10-29 +08)**: Primary verified the exact77 regular source members, their SHA-256 values and absence of archive extras. Archive `f812096b03109aa67378cb2f42b8a1ed53be08710e9fbf4f43d773d405d7cac8`; source manifest `f8cf43b897a2710554d7075c5de8ae12c99d5ec9873aeb9fa5641e4d7aba53e3`; stdout `1d9e04a7a7df4d720743b4bf3d4e0874cf28a5c1a03b6059123fec813a67aed2`. The actual runner uses pinned Node24.16.0/npm11.13.0, npm-ci with scripts disabled, build, and the guardian-native plus managed-resource suites:37/37,0fail/skip/cancel,17217.853578ms, extract/ci/build/test0, empty stderr. A preflight direct npm call failed127 because its interpreter was absent from PATH; the original log remains, and the corrected runner exports the pinned PATH. This is not a component-test failure. V45 contains prepared inputs/runner but no retained raw execution result; no run outcome is inferred.
+
+  Frozen27-file review manifest `5d0e8a878b4d980926faae3d0dfca9fbb26ab7cebbdae6c35b1b46093216d799` comes from that actual archive, with current Markdown context separately included. Live package-runtime index already differs through subsequent authorized work and is not mixed into this test claim. Relative to v44, the worker adds synchronous filesystem fixture dependency registration, disposal ordering, and a held command-terminal regression. The regression uses production guardian-worker code with a controlled fake Docker binary, proving its asynchronous ordering rather than real-daemon interleaving or crash recovery. The filesystem fixture supplies negative-probe paths; no host bind-mount capability is claimed. Independent review verified27/27 frozen hashes and closed the filesystem dependency P2: prepared registration is synchronous, disposal seals new dependencies and drains probes before files/FDs, unknown retains references, provider close is topological. Primary accepts that narrowly scoped correction. The terminal test P2 remains: its fake Docker barrier blocks every formatted inspect, so an erroneously early cleanup inspect is also held and may still satisfy the assertions. It must hold only the target terminal inspection and detect any subsequent cleanup inspection before release. Phase/result/finally waits remain unbounded, cleanup errors are discarded, roots are unconditionally removed, and a release-write failure can skip environment restoration. Same implementer received these specific test corrections under the existing finite-wait/evidence-retention contract; production cached-terminal source remains closed and no new production P1/P2 was found. This is source-localized test evidence, not a new permission or diagnosis allowance. Full authenticated ownership/recovery, remaining provider migration, managed assembly/graph/install, current-input cumulative/USE-003 and final independent review/primary integration remain required. T005 stays in_progress, uncommitted and not accepted; earlier failures and used diagnosis allowances remain controlling. Raw evidence and frozen review copies are private ignored artifacts.
+
+- **T005 native-only Linux increment, not accepted (2026-10-29 +08)**: Primary read preserved stdout/stderr from the dedicated VM's fresh native-owner test. The logs show Node24.16.0/npm11.13.0, build, and one pass with zero fail/skip/cancel; test36.029491ms/process1066.665627ms. Stdout SHA `e2a9e1c18a4a84979e062397319904c90a10179157aeb225342a1b5c588dc79a`; stderr empty. Worker reports exit0, load0.08/0.08/0.05,15G free; the metadata explicitly was created afterward from preserved logs/tool-reported exit, without invented timestamps or a rerun. Primary verified the retained source archive SHA `0085c32c33353b09bb56a33587662968fb0d3f36deca824611e7fd5ec69fff35` and all112 expected regular-source hashes against manifest `36cb71c3f3ed2aa3bf7d0f45c1683aca73e2f3209bb877c2bcb8c25deb297d0d`. An initial exact-archive assertion failed: the archive also contains171 AppleDouble regular entries and3 local Agent symlinks. They are not112 additional source inputs; the expected112 match, but packaging is not an exact regular-file whitelist. Preserve the historical archive; future necessary runs use the existing Python-whitelist packaging method. No qualifier, assembler, installer, workload or Docker command ran. This proves the limited normal concurrent-native/exclusive-journal path only, not crash recovery or full ownership. ResourceOps source and the test's failure-evidence cleanup have since changed; final current-input Linux evidence remains required.
+- **T005 current native-only Linux increment**: Primary read the new raw stdout/stderr and metadata, verified the explicit regular-file archive's exact76/76 source hashes with no extra members, and matched all76 to the current working tree at verification. Archive SHA `98d844ddc913b8da392384ad9d3b74959f5b7d836631f74fb147a70010441a79`; source manifest `608dd4eaf31a3ba5168e1fd4c79d2b921813f4f517f4be82d7bf8dcdd67143a5`; stdout `fbea3b0cf7d526e8b6d95e06cae46d7744d07fc4d43521badfa9f5c4dace0425`; stderr empty; metadata `f503c1babb422b424421c8a5c640f35398cb4382a1a97fb8a20c1a79d17079c6` reports exit0. Node24.16.0/npm11.13.0 and build appear in the raw log; the native-only suite is2pass/0fail/cancel/skip, including close during actual guardian identity publication. The actual dependency command is bare `npm ci`, not an ignore-scripts installation; retain that fact and use the established `--ignore-scripts --no-audit --no-fund` flags in future already-required snapshots. No broad qualifier or executable installation ran. Evidence and primary archive check are under `artifacts/private/t005-native-20261029-0303/`; full provider coverage, the remaining five-P2 correction acceptance and final current-input checks remain pending.
+
+- **T005 real-owner native Linux v2/v3**: The new fixture obtains its owner through actual PackageInstaller/BuildAuthority rather than an exported registration helper. Primary read v2's preserved raw failure:0pass/2fail, both EACCES unlink during final owned-tree removal after successful installation. The fixture now makes only its confirmed-cleaned owned tree writable before removal; failed roots remain preserved. V2 and v3 source manifests differ only in that Linux test. Primary read v3 stdout/stderr and exit0 metadata, verified the exact77-member regular-source archive and all77 current source hashes: archive `3c43a51e133fc4cb5674250c9374a9d617a71a60643cfe83ab46796482fbcf46`, manifest `9bfcf8a706bac600a6cf75d98ae387a07fa9d8799cd431ec41a4dffff15ca663`, stdout `fb851de6aacf81d11ee54591e970376daaa020068a25f67651898bd62c4f6fdd`, metadata `0d5f184a486d5a49ede3e81e645bdd20c830b187737b95df184bd543ac461bea`; stderr empty. Raw Node24.16.0/npm11.13.0 build and the two native tests pass with no skip/cancel/fail; the recorded runner uses `npm ci --ignore-scripts --no-audit --no-fund`. Forged/retired owner rejection, concurrent native settlement and close during guardian identity publication are covered. The trusted synthetic assembler does not execute Docker or a package, so this is not production install/qualifier/assembly or crash-recovery acceptance. Evidence is under `artifacts/private/t005-native-20261029-owner-v2/` and `...-v3/`. The five-P2 correction source review uses frozen24 manifest `23bffbc5241d56f92b5a623e960e0f0d2962d830b25f884370dd174ef201b176` plus two-file test supplement `d1be0e7fc5cca583467519d0a69da5d06af8309fed3dd84ecbfb0ea705665652`; review and the original full T005 conditions remain pending.
+
+- **T005 host interpreter evidence**: A full npm-test checkpoint was reported as145pass/7 Linux skips before later session-factory changes. The first focused18 report scoped PATH only to npm and cannot establish pinned direct-node execution. Worker explicitly corrected that claim and reports a subsequent18-pass run with Node24 PATH exported for the whole shell. Primary has not read/bound those raw18/full145 logs. Host-only platform skipping is not Linux provider acceptance; final pinned current-input cumulative evidence is still pending.
+
+- **T005 中间增量，未接受（2026-10-29 +08）**：主 Agent 实际读取私有 `t005-20261029-host-increment-v3` 的 formatter 与 npm 原始日志；日志为格式通过、137 total / 130 pass / 7 Linux-only skips / 0 fail / 0 cancelled，npm 日志 SHA-256 `7eadf6eeac356b4585110bb28829aaad6677f1230ae4eb7cc8400541860d4f71`。worker 报告对应命令 exit0，现有文件未单独保存进程 exit metadata；不把日志摘要扩大为独立最终验收。该轮 manifest 的16个输入随后已有7个发生合法实现变化，不能用于当前全部工作树。一次实际 stopped-container copy-only Linux 装配的 worker 报告为1/1，其原始 VM 日志尚未由主 Agent读取；本地只有说明，不声称已独立核验 Linux 结果。后续 builder/runtime selector 的主机16/16是另一 worker 增量，未执行可执行构建 VM 验收。
+- **T005 已定位修正与剩余边界**：主 Agent 用 checksum-valid USTAR header 在内存中实际复现 ASCII 解码丢弃高位，原 raw numeric byte `176` 被接受；同一 worker 已改原始字段先校验并补回归。该发现及全部早期失败保留。已拒绝独立 raw-Docker build executor，当前采用上方明确的 production ResourceOps 依赖注入方案，持续 BuildSession/QualificationSession、精确资源恢复、最终 Linux 累计/USE-003、独立源码复核仍 pending。现有解析器/装配器/Mock executor 通过不等于这些条件完成；T005 保持 in_progress，不提交或标完成。
 
 - **T004 主 Agent 最终接受（2026-10-29 +08；实际运行UTC2026-10-28）**：r34 source manifest `9465f9672ec29fd53aa5be362d3a0550a845fcbd59b058729aac05de51071540`、archive `91aefabc341993679aa4fc5f05bdc1c9ed7c56f086dd44838fbf5c77336d80ab`；主Agent、同一独立reviewer和VM均逐项核对95/95，两个公开CLI前后也全匹配。r34 focused real concurrent-orphan及独立v2负例2/2、exit0，UTC15:42:44.715–15:43:31.653；最终串行 `npm run test:linux` 为31/31、零skip/cancel/fail、exit0/null signal，UTC15:45:32.852–16:06:26.009。累计stdout `3d7981ee3ea401440c137bd05700633a8622b9fd2206837382e018be5cfb26b2`，metadata `f0fee7e5fe18bc3771666b0956184fefa9e2d7f00d18e4a2a50337b34ccfe5b1`，stderr空。host format:check/lint/build/npm test均exit0，118total/111pass/7 Linux-only skips；child npm实际使用Node24.16.0，metadata的Node25.9.0仅为host coordinator，不能混称产品runtime。未变生产输入的r33 Linux contracts58/58、deadline/acquisition2/2、main lifecycle1/1只在其相同输入范围复用，最终r34累计仍实际执行全部31例。
 - **T004 主 Agent 公开CLI与清理证据**：同一专用ARM64 VM、Node24.16.0、Docker29.9.2/0367cbe、原固定gVisor和两immutable images，独占VM后顺序实跑 `npm run linux:demo -- --image <T002 image>`（UTC16:09:22.298–16:09:51.017）及 `npm run sandbox:demo -- --image <T004 image>`（16:09:51.021–16:13:40.750），均exit0/null、stderr空。Primary解析实际JSON并断言十一场景completed/exit0/final-response、当前boot binding、允许操作1/拒绝0、admission成功1/1与取消/伪造/未授予0/0；四协议正控制true、负向packet0，I/O实际16777216 bytes/15908.126942ms/1048576Bps，原CPU/内存/PID/只读/秘密隔离/子孙清理条件全通过。三个离线profiles与全部八项binary/deadline/guardian-loss/output-limit/peer/budget/single-execution/final-cleanup结果true。原始CLI stdout SHA分别 `4a392858e3080f19f1c5100d9c811809e3c0b006ed7af569a50f0b3ffe2d451c` / `5d3309e117fc97a99c8a2e887c881cd3c3a7c521d19a205ae9beae22dee29813`，metadata `fed01b46fc56bc93522d908bd78ce40cfff1eddb717508a6f30f3dcf35849d48`。私有原始证据在r34-real-concurrent-orphan，未进入Git。16:16:51UTC只读inventory无运行容器；I/O root保留五个mtime为10月26日的16MiB旧文件，未删除或声称整个目录为空。初始全目录empty断言因历史文件失败，仅该附加inventory断言失败，不改写两个CLI/累计结果；随后仅核文件stat，未运行新probe/删除旧现场。公开CLI和suite的当前自有清理以其精确资源证明为准。
@@ -1057,6 +1499,33 @@ Add the real preflight crash boundary to the already required cross-process/cros
 
 ## 评审记录（实际）
 
+- **T005 v74 concentrated assembly review result (2026-10-29 +08;7 P2, no P1, unexecuted source)**: Reviewer verifies118/118 hashes and archive, then reports a single accepted correction batch: assembly updateResource omits create-proof tag/dependency fields (misplaced in probe branch); parent-loss/deadline must seal authorization before phase join and deny subsequent cp/commit; temporary cleanup proof must distinguish never-authorized/actually-settled work from successful commit; original phase and independent cleanup/persistence errors are lost through completion/phase Promise/terminal; new receipt/syncDirectory finally-close branches mask write/fsync failures; two Linux fixtures fork before configuring fake Docker environment; fixture cleanup lacks finite exact keeper/group settlement and preserves neither independent finally errors nor unknown roots. Primary accepts all seven and sends them as one batch to the same worker, prioritizing controlled fixture correctness before actual runs. Prior key resync, child-FD disposal and copied-mode fixes have source implementations only; original raw-close responsibility and durable result-before-inspect remain open, create proof remains affected by journal-field omission. No runtime acceptance, diagnosis, permission change or history reset; stable changed-input evidence and final full Linux/review still required.
+
+- **T005 concentrated actual assembly source-only review v74 (2026-10-29 +08; pending)**: Primary froze118 exact regular public files, source archive `8f1aa5131ca38afd598b19208355bfb446fa7815ada86d8a4ee972406b9ffde4`, manifest `8c31af3e29c5c5455ab436c8108cabc57e839277b6378ca98e118339c9fd2625`; all root/source hashes matched during snapshot. These118 inputs have not been executed as a whole. Same independent reviewer checks actual Managed ResourceOps/guardian assembly control flow and new controlled parent-loss child, with the six already identified corrections treated as known: key resync, raw lifetime before template deletion, exact child FD disposal, original authenticated create proof, copied guest-mode compatibility, and durable original commit result before inspect. The last finding is an observed source ordering gap: a parsed successful image ID is not assigned until a later inspect returns, so an inspect failure loses it from terminal evidence. Same worker must retain/persist the original result before subsequent verification without replay/late publish/image removal. This concentrated source check is interim only; actual final Linux/full-code review still required. Primary stops piecemeal review of changing source until the consolidated batch and stable worker evidence. No whole-Task completion, new diagnosis, counter reset or permission change.
+
+- **T005 independent117-input preflight/key/verifier review (2026-10-29 +08; key durability P2 open)**: Reviewer verified the117-file manifest/archive and saved196pass/0fail/8 Linux-skip pinned raw. V72 full-material-preflight P2 is closed: complete generated data and all canonical receipt checks precede registration/provider calls, and both corrupt-build regressions assert no additional assemble/verify. Active-owner defensive key copy, domain-separated HMAC and registered readonly fixed-image verifier have no other P1/P2 in this reviewed delta; final image candidate-label reliance is absent. One new P2 at frozen package-runtime/index.ts:3424 is accepted by primary: adopting an existing32-byte key without new file+authority-directory synchronization can accept the result of an earlier failed fsync. Same worker must verify/sync through the same descriptor and sync the authority directory before reuse, preserving all independent errors and allowing no runtime on failure; the first-sync-fails/retry-resynchronizes regression is required. No actual Linux/T005 acceptance follows.
+
+- **T005 first actual assembly source integration review (2026-10-29 +08; corrections required, not yet runtime-tested)**: Primary read the new fixed guardian assembly workflow and identified three concrete current-Plan violations for the same worker before actual installation: runDocker deadline returns after kill/unref before raw close, so waiting only assemblyPhaseWork and marking terminal unknown after recursive deletion cannot establish dependency settlement; the fixed template's root FD alone does not authorize recursive removal of replacement/extra child directories; actual successful stopped create needs its durable authenticated original success receipt before copy or ID-based cleanup, including parent-ID-journal loss. Corrections require real raw writer settlement before mutation, original per-child FD/exact postorder template disposal refusing foreign entries, and original authenticated create-success binding. Required affected actual negatives include parent loss with held raw copy, template child substitution and create-before-parent-ID persistence. These are observed source-control-flow findings under the already released Plan, not a new experiment/diagnosis, permission request or attempt-history reset; independent assembly implementation continues and remains unaccepted. Primary then read the fixed template's explicit0700 copied ancestors and checked [Docker's official cp semantics](https://docs.docker.com/reference/cli/docker/container/cp/): copied modes are preserved where possible and container destinations use root ownership by default. Together with the existing nonroot profile, this localizes an additional access defect: copied /opt/qdroid ancestors can block the protected probe and package paths. The host-private outer template stays0700 while the code-owned copied directory modes must allow the qualified nonroot user to traverse; original-FD validation follows each exact selected mode and restrictive-umask/actual nonroot image access must be checked, without profile weakening or start/RUN helpers.
+
+- **T005 keeper mechanism independent protocol check (2026-10-29 +08; P2 supplementation selected)**: Same independent reviewer found one missing concrete condition in primary's keeper selection: parent loss alone does not establish settlement of dependent probe/container/copy writers. Existing Plan dependency ordering already requires these to finish before persistent fixture/template removal. Primary accepted the finding and fixed the implementation contract: before any dependent side effect, persistently bind dependency resource and actual boot/PID/start/group to the keeper and obtain registration confirmation before authorization; bind later exact successful container identity as applicable. The keeper requires authenticated dependency cleanup terminals, actual original writer/group exit and exact container removal evidence where required before deletion/confirmed terminal. Missing/live/unknown/timeout retains exclusion and evidence/FD responsibility. Actual Linux parent-SIGKILL-with-active-probe/copy negative is required. No other mechanism-level P1/P2 was found in the reviewed choice; it does not substitute for future code/terminal-publication/raw-settlement/replacement/Linux proof. This supplements the current original Plan's topology requirement, not a new authorization/diagnosis or a reset of history; independent assembly work continues.
+
+- **T005 v72 narrow identity/publication review (2026-10-29 +08; correction required)**: The same independent reviewer verified all82 retained source hashes and primary's exact review repack. The last v70 child-exit/stdio-drain P2 is closed: publisher.exit waits for close. Private WeakMap registration, active exact owner checks, distinct assembly/verification handles and default managed routing have no additional P1/P2 in this delta; existing outer runtime-receipt candidate tamper is rejected before new provider calls. One P2 remains in frozen index.ts:1564: existing-material reuse invokes runtime image verification before validating generated output, no-build/build fields and builder receipt provenance. Primary read the ordering and accepted the finding. Same worker must preflight the complete retained material set before registering/invoking any verification capability and prove generated-file and builder-receipt-candidate corruption make no additional assemble/verify calls. This is conformance to the current released Plan, not a new architectural decision. Full production ResourceOps/recovery/assembly/graph/Linux/cumulative/USE-003/final acceptance remain required; no task transition or commit.
+  Public tracking updated at2026-10-29T05:58:44Z in [new current progress comment](https://github.com/arnow117/qdroid/issues/7#issuecomment-6489220633), linking and retaining the previous long history. GitHub connector transport failed; existing authorized gh fallback succeeded. The issue remains open and local T005 remains in_progress.
+
+- **T005 v70 fixture review and in-progress assembly provenance (2026-10-29 +08)**: Independent reviewer verified82/82 frozen inputs, manifest `326095da2e0aed72a9782f56c359cb0c1a91085aa9012beffd655dfa2fd52e28`, archive `64d155d535ba5a5afb9b67348310f3c33af5515237d63688c724f7200d158663`, and raw stdout `fcc658e9aa2b5d9892e558c485e2ccd4cde9ae541dc3f785f69e93009693a37a`. Primary also verified all82 archived/extracted/retained/current inputs, actual pinned24.16/npm11.13 steps exit0,75pass/0fail/skip/cancel23533.765125ms and empty stderr. Previous parent-channel-loss/infinite timer and independent concurrent-error/cleanup-join P2s are closed narrowly. One fixture P2 remains: the new stderr assertion awaits `exit`, which precedes stdio closure; join child `close` within the existing finite bound before inspecting output. Same implementer reports this correction begun; the next stable changed-input evidence must bind it. This review is read-only and does not accept whole T005.
+
+  Worker also reports first in-progress private assembly/verification token integration and a default ManagedImageAssembler; current ResourceOps assemble/verify operations still reject as unsupported. Primary read-only source analysis confirms distinct object-identity lookup capabilities, and found one concrete original-contract provenance gap: readSealedAssemblyReceipt accepts receipt.candidateId by syntax alone, then verifySealedImage uses that self-reported value to register expected original-candidate material. Before production use, derive original candidate from trusted canonical retained registry/seal/lock references, cross-check path/purpose/receipt consistency and reject substitution before native verification/assembly/execution. Same worker received this correction and requested tamper/noncanonical-reference regressions; no new permission or execution capability was added. This is analysis of unaccepted live code, not a frozen-source/runtime pass. Default managed integration and full provider/recovery/assembly/graph/Linux/CLI/final review remain pending.
+
+- **T005 v66 publication delta source review and v67 after-run subset (2026-10-29 +08; not accepted overall)**: Independent reviewer verified29/29 frozen source inputs against manifest `1f116224599c708c4b7f04c07c7f1e1a0ba2e71f7109f2d1c8f561b72075cdb9`; delta is package-runtime index, installer tests, holder helper and new crash child. Original exact-prefix/rename-error/acquisition-error P2 source branches are closed. Source review confirms the actual FileHandle.sync failure branch, BuildAuthority initialization after physical BEGIN, and0600/O_EXCL/O_NOFOLLOW first creation without chmod repair of an existing file. Four concrete existing-contract corrections remain: new-file sync+close failures must preserve both errors; content authority must validate complete STRICT/PK/columns/unique metadata row as BuildAuthority now does; the SIGKILL child needs actual pre-message liveness and finite owned exit/finally; paused publishers must both be observed/joined, and all new failure fixtures retain failed/unknown roots rather than deleting active material. Primary accepted one correction batch to the same implementer. The reviewer ran no tests/VM.
+
+  Worker reports pinned Node24.16.0/npm11.13.0 format/lint/build and installer70/70 with0fail/skip/cancel, but original stdout/stderr were not redirected or retained for primary review. This stays implementer-observed, with no invented raw logs or test rerun solely to reconstruct reporting. The after-run29-file archive has SHA `a7929d07dc7cd0a98cad75b25c58644fb2d224c7f1928104b22f532871faea0b`, manifest `8def9640822a693c95afa9f8e45293384c7f490b89fcc8762ed02e0ab039dc63`. Primary verified exact29 regular source entries plus the exact manifest, all hashes, and equality to the v66 frozen subset. This is a review subset, not all transitive compile/test inputs; it cannot bind a pre-run source claim. The crash helper has since changed legitimately. Full required final checks must use a pre-run regular-file whitelist snapshot and actual persistent command/exit/version/stdout/stderr evidence; the existing v49 runner demonstrates that mechanism. No full provider/managed assembly/executable graph/Linux installation/recovery/current cumulative/USE-003/final review or primary acceptance is inferred. Failure history and used diagnosis allowances are unchanged.
+
+- **T005 publication/registry v65 independent review (2026-10-29 +08)**: The replacement independent Sol reviewer verified28/28 frozen regular files against manifest `5516de4be297ac7e4788c89dfb0b37b130e81ae802bdea250452d4016d9c9ae8` and the matching v64 archive, and read62-pass raw host logs; no tests/VM or implementation edits ran in review. Primary accepts three concrete P2 corrections under the existing approved contract: `readUserSchemaObjects` uses `NOT LIKE 'sqlite_%'`, whose underscore wildcard hides legal user objects such as `sqliteXforeign`, permitting current registry/authority DDL in a foreign database; use exact reserved-prefix handling and prove both entry points refuse without schema/data mutation. `sealCandidateContent` still adopts after an EEXIST/ENOTEMPTY rename under physical exclusion; unexpected destination interference must preserve the original error, with adoption limited to initially observed existing material. `ContentPublicationAuthority.acquire` discards independent rollback/close failures and can retry original busy after uncertain cleanup; track actual transaction state and preserve independent failures without unsafe retry. Root also retains the existing strict private-file requirement for the authority SQLite file, rather than treating directory mode alone as the file check.
+
+  Primary source review of the next unaccepted correction identified its first-open ordering failure: `new DatabaseSync` was followed by strict private-file validation before chmod. A finite standalone local experiment with actual pinned Node24.16.0 and process-local umask022 observed a newly created SQLite file mode0644 and `privateCheckBeforeChmod=false`; the connection was closed, umask restored, and only that new task-owned temporary directory removed. This is ordinary new-source causal verification, not a product-suite result or a new nonconvergence diagnosis allowance. The implementer received the concrete first-creation/concurrent-initialization correction; foreign/symlink files still cannot be chmod-repaired into authority.
+
+  The original required actual-publisher pause after rename/before sidecars, original fsync failure, and dead publisher's unregistered incomplete tree remain uncovered by the idle SQL holder and committed-corruption cases. The same replacement implementer received one batched source-localized correction/verification request and continues the full original provider/recovery/managed-assembly/executable-graph Task. This review is not narrow-component or whole-T005 acceptance; prior failures and all used diagnosis allowances remain preserved.
+
 - **T004 最终独立增量评审与主Agent接受（2026-10-29 +08）**：同一独立Sol reviewer核r34 manifest95/95，最后仅真实concurrent-orphan测试变化：actual create-before-ID barrier/receipt、精确guardian及manager有界退出、恢复前真实完整ID/name/image/labels存在与journal无ID、原双backend recovered1/unresolved2invalid及future/forged保留；独立v2 negative与真实held-peer未变。原r32/r33的最终stop确认和structured cause已闭合，生产源码评审复用仅限未变输入，无新增P1/P2。review只读未跑VM；主Agent核实际原始host/Linux/CLI/输入证据并最终接受T004。该Task独立review不替代未完成Feature的正式Review。
 
 - **T003 独立代码复核（2026-10-26）**：首个 70 文件快照 `438dcd74a9d69eb11289dd6ac345d2282bbbe24ca5c5f4e365a223caedfae07d` 定位等 epoch 身份复活、新 executor 历史 cancel/reconcile ownership、取消落盘失败误分类三个实现缺陷，以及 SIGKILL/验收缺口；同一实现者修复。71 文件增量快照 `ad9058dcae9380eb19f62fa9a4eeaf8e8d16d4d6472557de2d4595f0cc978dd9` 确认 core、初始化/discovery、CLI/Linux 无其他 runtime blocker，要求补真实 v0 历史、原 T002 assertions、失败子进程清理。最终快照与实测 manifest 同为 `5d610f12abcb4c2b128d96f821342072ff147a4440b2113bc7207bc3b96cc31b`，71/71 hash 匹配，仅三份测试 delta，独立 reviewer 确认全部解决，无剩余 blocker。复核只读，未运行测试或 VM；主 Agent 聚合实际运行证据后接受。第 5 项文字澄清固定 provider contract digest 与另存的路由 provider binding，与公共规范/实测实现一致，不改变 lookup scope、权限、持久化格式或行为。
@@ -1073,3 +1542,905 @@ Add the real preflight crash boundary to the already required cross-process/cros
 - **产品观察计划引用**：[产品上下文发布后观察计划](REQ-MVP-001.product.md#发布后观察计划sdlc-补充)，产品指标/窗口/负责人不在此重复。
 - **技术发布准备、实际结果、反馈证据与缺口**：产品发布尚未执行。未来逐版本记录合格host/profile、包/服务/设备兼容、最小权限配置、备份/回退与smoke。包回滚不撤回副作用/复权；数据库保留对账历史；设备仅恢复已验证安全显示/模式。
 - GitHub [Foundation #1](https://github.com/arnow117/qdroid/issues/1) 与 [MVP epic #2](https://github.com/arnow117/qdroid/issues/2) 是协作入口；milestone不是阶段通过证据。运行时版本仅在全部适用验收、正式验证/评审及发布授权满足后发布。
+
+- **T005 bounded consumer/producer concurrency (2026-10-29 +08; still in progress)**: Primary mapped the remaining backend profile qualification calls and settled the existing Plan's fixed network positive-control method as `assertPositiveControls(): Promise<void>`, with permanently latched `assertHealthy` failure including after disposal. The existing producer implementer explicitly confirms no current/planned writes to backend.ts. A separately verifiable consumer unit may therefore modify only backend.ts plus one new dedicated Mock routing test (and, only if necessary, one private non-barrel helper), in the same registered branch with isolated private compile/test snapshots and no shared dist or VM operations. The original implementer retains all ResourceOps/guardian/legacy/package-runtime/recovery/assembly/VM work and its corrections. The consumer must preserve all original tuple assertions, closed recipes, explicit cleanup/unknown handling, unmanaged compatibility, and fail-closed readiness. Primary accepts the consumer evidence independently, then integrates both units on one exact source/environment before full Linux/USE-003/final review. This split does not reset the original Task, failure history or used diagnosis allowances.
+
+  The v75 first Linux attempt was executed in the default Colima profile, which lacks the dedicated reference image and I/O directory; its reported16/41 pre-create failures cannot qualify the source. Original logs and retained roots remain preserved. The implementer identified the selection error and will use only the existing dedicated qdroid-t002 profile for the same necessary frozen-input run; no inference of environment drift in the dedicated VM is made from the default profile's Docker version or absent Node runtime. No new runtime/source acceptance or user authorization follows.
+
+- **T005 USE-003 consumer boundary (2026-10-29 +08; implementation pending)**: The main producer explicitly releases apps/cli/src/index.ts, docs/USAGE.md and a new trusted package-install-demo fixture from its write scope. A separately verifiable consumer unit may add those plus one new dedicated CLI contract test; it uses isolated host/Mock snapshots and never operates the VM or changes producer/backend APIs. The trusted command shape is `install-demo --fixture content` or `install-demo --fixture executable --image <local-immutable-image-id>` with strict flags, fixed allowlisted local bytes and no arbitrary source/path/command or grant option. Executable composition is only PackageInstaller with the production OciSessionBoundRuntimeFactory under the same owner; it must retain fail-closed readiness until all original producer/recovery conditions pass. The fixture checks installed-disabled plus identical original record/material reuse, retained content/generated bytes, and no application activation/grants; failure/unknown state is preserved. Host actual content acceptance and Mock consumer evidence are distinct from the still-required actual dedicated Linux executable run. No command is documented as successfully verified before its actual run. Root aggregates all three disjoint consumer/producer units on one final input for acceptance; original scope, state, failure history and diagnosis usage remain unchanged.
+
+- **T005 v78 actual dedicated-Linux component run (2026-10-29 +08; full Task pending)**: Primary verified all118 exact regular archive members and their manifest hashes. Archive `00b522b6f2e6d475c70798cf2208749746d85e46d69738593986f8374da12118`, manifest `b1db3496142734984d70a971f34014ebd7faad235ee090e3253995b9e30b5506`, stdout `dd094609574b1f83c9138c5739e38c9eba7401aaf23eaf65b3c39f7dad51924e`; input-before/after match. The recorded mixed input is stable v75 consumer sources plus five explicit ResourceOps/guardian/assembly-fixture overrides; current backend and engineering edits are outside that frozen evidence. Dedicated qdroid-t002 profile has original boot48e450a1-f9c2-4c8f-9c86-96cadca3f5e8, pinned Node24.16.0/npm11.13.0, Docker client/server29.9.2 and retained reference image85ec…76a4d. Extract, ignore-scripts npmci, build and serial guardian-native + managed-resource suites all exit0;41pass/0fail/skip/cancel,18837.840156ms, stderr empty. Controlled assembly-copy/parent-SIGKILL/replaced-child/original-commit-receipt scenarios now execute on Linux; controlled fake-Docker branches remain distinct from actual full-daemon assembly/install/qualification. Dedicated v75/v76 failures and default-profile selection error remain preserved. Primary read v76 raw39pass/2fail (parent-disconnect phase result and committed-image receipt); this history is not replaced by v78. No whole production install, executable graph, fresh-session recovery or final independent review/USE-003 acceptance is inferred. Private source/raw evidence is retained under t005-native-20261029-assembly-v78.
+
+- **T005 accepted fresh-recovery API alignment (2026-10-29 +08; implementation released)**: Primary localized the original missing composition: BuildAuthority only rejects retained sessions, v1 intent lacks actual owner identity, and the factory has no fresh recovery port. The same independent reviewer checked the concrete protocol proposal SHA `9bf3d3767f197f646257418b3f4463f99a6f8469695e8b7f38690b35f6096ab4` against the original Plan and current interfaces, finding no P1/P2. Primary accepts and records the authoritative implementation in `planner/t005-build-serialization.md#accepted-fresh-recovery-api-alignment`, new Plan SHA `a6445d35f1381971534140af6294d0c9f58fe1e1be4aeb23786b8a77cc00aa3d`. Same physical BEGIN IMMEDIATE owns pending inventory, an opaque recovery-only capability distinct from active owners, actual production identity capture, authenticated v2 session and provider-ready durable acknowledgement, complete original keeper/resource/dependency/terminal plus writer-death checks, then durable authenticated retirement receipt before exact active-intent removal/directory sync/new admission. Synthetic host Mock records cannot become production proof; missing keys with pending sessions never creates replacement keys. Observation-only recovery must actually reclaim supported ordinary parent-loss cases; incomplete/live/foreign/future/unknown remains blocked, with no replay or path-based cleanup authority. The original implementer receives a complete v79 supersedes brief retaining all original full scope, current disjoint consumer boundaries, failure history and used diagnoses. Protocol review ran no tests/VM and is not Task acceptance.
+
+- **T005 USE-003 initial host/Mock evidence (2026-10-29 +08; corrections pending)**: Primary verified122 source hashes in the original archive and actual test directory; four consumer files match at audit. Original archive SHA `931a6e02f213d35008457f8fab02d84cc5d8bbd358d92405bbea4e44b54c0175` contains244 regular members (122 expected sources +122 AppleDouble), not122 exact members. Manifest SHA `1a456fbad74612520d4fc57e22ffb9be672548abe5f253ccfe42d9156cee4215`; preserved original and exact same-source review repack `2b1b6ad2d3393f7f15ede2d48ee054dc8600ec6561c57796f0501cf3019bbe22`, no rerun for packaging. Actual pinned24.16.0/npm11.13.0 offline ignore-scripts npmci, format/lint/build and4 dedicated tests exit0; compiled content CLI/reuse and legacy demo exit0, malformed content+image exit1. Full Linux executable mode has not run. Primary returns one same-contract correction batch: production host/architecture checks before effects, retain original/independent errors in cause while CLI stays sanitized, remove fictitious active/grants-path proof, and finitely bound/settle the test-owned child/output with failure preservation plus zero-effect invalid arguments/platform. Same consumer worker owns corrections; original evidence and no-final-acceptance status remain.
+
+- **T005 backend consumer v79 independent review (2026-10-29 +08; six P2 corrections required)**: Primary and reviewer verify120 retained source hashes and a two-file delta. Original archive `da62199cb8f3dd9564eb272990795f4a6d9748624cf86c6998dd967d6fd09170` actually has240 regular members (120 sources +120 AppleDouble); same-source exact review repack `442551bfa26ebd7a23f4bc648734240f430d858182aed4944a0a83cc939bbac4` preserves original with no test rerun. Manifest `34fbbf3482ce030924f173873be9562013589d78bbe637a9cdc1fa623e6a160a`; no per-command raw logs were retained, so strict compile/build/4pass remains implementer-observed. Six source P2s are accepted as one same-worker batch: test-only export leaks through runtime index export-star; cgroup stream errors/limits are swallowed without joins; cgroup/memory ignore original completion reason; CPU/I/O line readers lack byte bounds; protocol errors/EOF after first result can disappear in already-resolved signals; incomplete network receipt fields pass truthiness tests. Required private helper extraction, persistent phase failure, original-result/stream/cleanup settlement and discriminating negatives stay within the original unit. Readiness and unmanaged fallback boundaries remain closed. Full runtime acceptance is still pending.
+
+  Primary separately identified the original profile's ordinary IPv6 UDP receipt path missing from the shared DTO. The fixed interface now requires explicit `udpIpv6: boolean` (legacy fixed listeners return false; profile aggregates all IPv6 ordinary UDP target receipts), in addition to all existing target/protocol receipt coverage. Consumer requires settled===true and every receipt field strictly false; missing/wrong values are not negative proof. This preserves existing network assertions and adds no target/network permission. Producer supplies a stable v80 interface-only119-file baseline, archive `110db9efdd32e9b6d67a6fd298a47c6ce8ffbd408f79133c0c29c9c91306a1b2`, manifest `723d0575e0e29b8b14567936e77f96cb0dd6a53e3d9a016204990e9b41822b92`, reported strict Node24 tsc0; actual network producer remains unimplemented in that baseline. Final tests use one complete actual input, not combined component claims.
+
+T005 USE-003 reference-root review (2026-10-29): the v9 host/Mock source
+archive is exact 123 regular files and actual raw format/build/10 tests passed;
+this is not Linux executable acceptance. Independent review closed the previous
+two owned-process test-helper findings and localized three remaining state-root
+issues: environment-dependent tmpdir namespaces, unchecked installer/owner-store
+subroots and unsynchronized root creation. The effective Plan now fixes the
+Linux reference root under /var/tmp per trusted UID and requires strict private
+validation plus directory/parent fsync before any installer/runtime composition.
+The same consumer implementer retains these corrections; production integration
+and all original T005 acceptance conditions remain outstanding. Failure history
+and used diagnosis allowances are unchanged.
+
+T005 managed execution interface alignment (2026-10-29): root source read
+confirmed backend.execute forks its guardian before persisting the T004 journal.
+The accepted effective Plan now requires before-fork handoff registration,
+post-journal/pre-start awaited acknowledgement, durable terminal before unlink,
+and an exact cleanup-only recovery capability under BuildAuthority -> T004 lock
+order. Independent protocol review found two P2, resolved in the contract by a
+new authenticated managed journal version with uniform public-recovery fencing
+and explicit no-create versus created-cleaned proofs. Legacy unmanaged public
+recovery remains compatible. This is interface acceptance only: implementation,
+crash/no-replay proofs and final full T005 acceptance are pending. The same main
+producer retains ownership; backend.ts transfers only after the current profile
+routing consumer is independently reviewed and accepted. No diagnosis/history
+allowance resets.
+
+T005 profile-start segment stop (2026-10-29, v84/v85): after the bounded
+Running+Pid startup change and the fixture/empty-output correction, dedicated
+v85 still reports 12 pass / 1 fail / 0 skip/cancel (930.575197 ms), with npm ci
+and build successful. Root read the actual raw log: it proves only an attached
+command result arrived before probe-started; it does not independently prove a
+guest clean exit or supply Docker State/exitCode. The failure remains unresolved.
+The same implementer stopped profile-start changes/reruns under the existing
+nonconvergence rule; all original diagnosis allowances are used. v84/v85 roots,
+119-member archives, raw commands/results and unknown evidence remain retained.
+Root requested fresh explicit human authorization for one maximum-20-minute
+experiment: at most one exact owned, uniquely labelled container in the existing
+dedicated VM, unchanged image/gVisor/isolation/limits and fixed Node standby
+program; bounded 2-second direct-start observation, exact inspect and only
+identity-matched cleanup. No experiment is authorized until the human responds.
+Independent producer, backend-routing and USE-003 work continues; the stopped
+segment survives supersedes and does not reset prior history. No T005 acceptance,
+commit or push is claimed.
+
+T005 independent pre-provider Linux evidence v86 (2026-10-29): primary
+verified all 119 regular archive members and retained source hashes, exact
+archive cc40099cb723560423167a8dd0a891957dbf6f1879f583b1b5a201217dae4f2b,
+manifest c938b118af112c89d373c0dcb2b3591978870e083349ebae6738080b92407ad1,
+and unchanged before/after VM archive hashes. Dedicated qdroid-t002 environment
+retains the accepted boot/image/Docker 29.9.2 tuple and Node 24.16.0/npm 11.13.0.
+Actual npm ci --ignore-scripts, build and session-runtime runner all returned 0;
+10/10 tests passed, no failure/skip/cancel, stderr empty (1031.525714 ms).
+Raw stdout SHA df8092b33911d514b5e2a64a47b3fe83e38899bd0393df9ad4294200fe0ab1fa.
+This proves the tested dead verified pre-provider retirement path, including the
+production OCI recovery adapter; it is not proof of provider/keeper/container
+parent-loss recovery, whole install, executable graph or final T005 acceptance.
+The stopped profile-start segment and pending human diagnostic request remain.
+
+Backend consumer v80-p2-node24 was independently checked with 121 exact regular
+inputs and actual pinned format/strict tsc/build/13 tests passing. Review closed
+immediate reader observation and bounded unknown-cleanup return but localized
+three further paths: confirmed-cleanup plus held reader could pass; cleanup-time
+phase/completion errors could be omitted; repeated parser errors could fill a
+six-error collector and drop independent cleanup causes. The same implementer
+retains this precise correction batch. Backend write ownership has not transferred
+to the main producer. These are new observed source causes, not a blind rerun or
+reset of the original failure/diagnosis history.
+
+The human explicitly authorized the pending additional profile-start diagnostic
+round (reply: 可以的，你有我的各种授权). The concrete requested bound remains
+one controlled container and at most 20 minutes, same isolation/limits, direct
+fixed Node attached-start observation for two seconds with before-timeout State
+snapshots. Primary established the falsifiable direct-live versus direct-exit
+hypothesis and a diagnostic-only brief; the same sole dedicated-VM producer
+executes its controlled verification. No production correction, guardian rerun,
+sandbox relaxation, new unlimited allowance or old-evidence cleanup is implied.
+Only observed causal localization can release a corrective effective-Plan update
+and complete supersedes brief. Original history and unrelated exclusions remain.
+
+T005 USE-003 v13 narrow consumer acceptance (2026-10-29): primary and
+independent read-only reviewer verified 123 exact regular archive/source hashes,
+archive 8ff68de2f304529524ba477b1f63455b09f5074c494218a1e068a1b44a7f9aef
+and manifest ec4060ccfaa405f481aa43d40bf72c79ea438a2fe42b65e9ee613388e65ce978.
+All six owned CLI/fixture/helper/test/usage files match the frozen input. Actual
+Node 24.16.0/npm 11.13.0 offline ci, format, lint and build exit 0; consumer
+contracts 13/13, content CLI exit 0 and unsupported executable CLI exit 1 with
+sanitized bounded diagnostic. The v9 three root findings and earlier two helper
+findings are closed under their original triggers; independent review has no
+actionable P1/P2 for this unit. Root retained archive/manifest/raw under
+artifacts/private/t005-use003-consumer-v13-root-read. This accepts only the consumer unit,
+not Linux executable or full T005. Main producer may consume these frozen files
+for unified actual Linux shared-authority/retry/recovery acceptance; it must not
+change CLI parameters or use a fresh root around an unresolved session. The same
+consumer remains available only if later integration evidence warrants correction.
+
+T005 authorized profile-start diagnosis result: the single 8.3-second experiment
+completed within its 20-minute bound, with one new exact identity-matched
+container and confirmed identity-matched removal; all original unknown roots
+remain. Raw archive SHA 36551f3a72b9b1dd18a8bbbb02244e813028f645aa372ebbbf013158f1e80a92
+was independently read by primary. Original fixed create argv, image, private
+gVisor/nonroot/readonly/network-none/CPU/memory/PID/I/O/tmpfs/shm tuple is retained.
+Pre-start State was created/false/Pid0; before timeout, same exact container was
+running/Pid4125765 at 51/501/1504ms. Client exit0 occurred only after explicit
+2-second cancellation; post-cancel guest exit143 is not an original clean exit.
+Root source comparison confirms v78 fixed-probe/v1 start acknowledgement did not
+assert live PID, whereas v85 added a global wait that interprets created false
+as exit. Actual v85 first State remains unobserved. The observed direct-live
+result localizes the guardian observation boundary and supports the bounded
+compatibility correction recorded in the effective Plan: preserve start-ack
+semantics and require actual bounded Running+PID at live-cgroup inspection.
+The same producer receives a complete supersedes brief before correction and
+necessary current-input verification. This is not actual corrected Linux
+acceptance; all failed histories and used diagnostic allowances remain.
+
+T005 managed-profile consumer final narrow acceptance (2026-10-29): final
+exact121 regular overlay archive680fdb099a9e7c15ca27c5780a3c3dc675e146619840b2d938ec6245617d704e,
+manifestf578f37b16cddc588a00e187e93974abcb8f705e778670df22fb02840590b2af.
+Primary verified three current file hashes and actual raw pinned Node24.16/npm11.13
+format/strict typecheck/build/18 tests all0 (890.935541ms, no failure/skip/cancel,
+stderr empty). Independent source review returns no actionable P1/P2; final
+parser-versus-terminal isolation and exact stopped-completion/held-reader
+regressions close their original triggers. This accepts only managed qualification
+routing against its frozen provider interface, not production readiness/Linux/T005.
+Backend source at dc6c08132f414bda03a6524251cb6a8870ae41733c9e7ce8a1589755318617cb
+now transfers exclusively to the same main producer for the already settled
+managed execution handoff; helper/test remain frozen accepted consumer scope.
+The complete producer brief v82 records this explicit write-boundary handoff.
+
+Root also read the deterministic v87 cleanup ordering: finalizeManagedLease
+correctly seals owner before close, but provider terminal persistence wrongly
+requires active owner. The original cleanup contract remains: seal new work,
+allow only tracked original terminal persistence under active/closing unreleased
+ownership, retain authenticated journals, and retire/release only after raw
+persistence settlement. Never reopen active/new-effect authority to fix this.
+The same producer owns the precise correction and necessary current-input Linux
+assembly evidence; v87 failed root/raw remains.
+
+Primary requests one bounded independent read-only implementation review of
+the new v2 BuildAuthority/recovery state against frozen v86 inputs, because
+pre-provider/ready/terminal crash windows and opaque capability lifetime are
+not established by the 10 positive/component tests alone. Scope is only actual
+implemented pre-provider recovery, HMAC/session/receipt binding, retirement and
+lease/capability lifetime; aggregation returns to primary before any correction.
+The known v87 active-versus-closing terminal defect and missing full provider/
+execution recovery are already assigned/pending and are not new review findings.
+No tests, VM, diagnosis or source mutation is delegated; final whole-task source
+review remains separately required.
+
+Independent v86 implementation review localized three P2 within the implemented
+pre-provider/retirement branch: missing-ready recovery did not reject nonempty
+or inconsistent fixed-store evidence; reuse of a linked retirement receipt
+skipped file/parent resynchronization after a failed previous directory fsync;
+finally close/unlink could overwrite independent write/fsync/link failures in
+new control-record helpers. Primary returned the complete precise batch to the
+same producer under the original pre-effect/retirement/error contracts, without
+new scope or diagnosis. Synthetic test identities: the v86 10/10 uses injected
+non-live PIDs, not actual SIGKILL. Its passing scope is only the tested branch.
+Opaque recovery capability registration/finally invalidation had no new finding
+for its currently read-only implementation. Complete mutable recovery remains
+pending and must retain physical transaction ownership through raw effects.
+
+Primary verified startup-correction v89: all119 regular members, archive
+51e9ad9b7d9f26c5504ee514c5f7aa62dbb7d61054dbec3e359936b1526d892b, manifest
+a1acf004692681c00a064a3545a52c498009a4bd9a81787c820595b5aa4cbc87, identical
+before/after VM archive hashes and actual raw commands. Dedicated Linux
+Node24.16/npm11.13 extract/ignore-scripts ci/build/guardian tests all0;17pass,
+0fail/skip/cancel,1087.926123ms,stderr empty. This includes actual owned cgroup
+inspection and controlled created/terminal/mismatch/cancel regressions. V88's
+16pass/1fail cancellation assertion and all unknown roots remain; v89 accepts
+the observed closed-IPC cancellation rejection without a late snapshot. Narrow
+independent source review is pending. No full profile qualification, production
+installation/recovery or T005 acceptance follows from this component run.
+
+V89 startup narrow source review remains unaccepted with two P2, despite
+verified Linux17/17: in-flight inspect/cgroup awaits lacked final current
+lifecycle/terminal/absolute-deadline checks, permitting a late running result
+after cancellation/timeout; the delayed-created regression's broad catch could
+accept its own awaitWithin timeout and clean its fixture before the original
+observation/guardian/child settled. Primary returned the full precise batch to
+the same producer under the existing after-await fencing/raw-settlement contract.
+Require blocked inspect -> cancel/deadline -> late running regressions, no late
+snapshot, and actual raw settlement or retained unknown fixture. The prior v88
+cancel error-type allowance itself retains cleanup checks and is not a separate
+defect. No new diagnosis or history reset; full T005 remains in progress.
+
+Primary verified the combined recovery/profile correction input v91: all119
+unique regular archive members and retained source hashes match; archive
+a4bc19b199cad7ef52447bcd025404a2577dbb85902373961141d44eb33ed624,
+manifest edd6b3b8e6c3f2f5f88eeb7730f7f0c6f8c5d2fc48fae4de268b2011038c0360.
+Dedicated VM before/after archive hashes are identical. Actual pinned
+Node24.16/npm11.13 extract/ignore-scripts ci/build and the guardian-native plus
+session-runtime runner all exit0;30pass,0fail/skip/cancel,2303.771318ms,stderr
+empty. The frozen tests cover delayed running observations after deadline,
+nonempty exact pre-provider stores, retirement resynchronization and nested
+independent durable-write errors. The v90 failures and their actual test-only
+causes remain retained. Independent read-only review of the five earlier P2
+corrections is pending. This snapshot is an explicit119-file overlay and does
+not include every current consumer file; it is component evidence, not a unified
+current-input acceptance. Injected dead-PID recovery remains distinct from actual
+parent-loss/container cleanup. Managed terminal/assembly, execution handoff,
+complete graph and whole T005 acceptance remain pending under the same producer.
+
+V91 independent delta review and primary source inspection close the receipt
+resynchronization, independent write/close/unlink failures, late-running product
+fences and timeout-catch findings. Two original triggers remain unclosed: final
+store ENOENT can traverse a replaced runtime-sessions parent symlink before
+confirming a no-effect pre-provider session; delayed/deadline fixtures join only
+closed IPC and the held sleep, not actual guardian exit/group/raw settlement,
+before restoration/removal. The same producer receives the complete correction
+batch: validate the existing fixed parent chain without following links before
+interpreting missing/empty state, preserve contradictions as unknown; register
+and finitely join actual guardian/owned-writer exit before fixture deletion,
+retaining unknown fixtures and independent errors. Necessary exact-input
+regressions remain required. No new diagnostic allowance, Plan scope, Task
+acceptance or permission is implied.
+
+Primary read the actual v92 and v93 terminal correction failures. V92 has120
+unique regular archive inputs matching its manifest (archive
+f1658d8d1e527c7de8010dc39267e224c3e601ab5882f6da44739e0136e8f47e,
+manifest5b843436ec93421cb57129254324ec5a969af66d18cea8b97f16a1f159c8e1c1);
+it has no separately materialized source directory. Actual dedicated Linux
+ci/build pass, but63 tests yield42pass21fail,0skip/cancel,35428.383706ms.
+Parent-chain and guardian-exit corrections passed within that run and receive
+a narrow read-only source delta review; the full run is unaccepted. V93's three
+selected terminal cases fail after ci/build pass and supply causal localization:
+provider-ready stores the initial journal tag, whereas ordinary cleanup advances
+the authenticated journal and terminal must bind the final tag. Requiring their
+equality rejects a normal original-provider close. The third case also used an
+async rejection assertion for synchronous native admission denial. Primary read
+the frozen equality check, raw stacks, original ready callback and terminal
+binding. The same producer corrects only the stale equality and assertion type,
+preserving registered active/closing ownership, claimed/acknowledged/unrecorded
+state, tracked raw persistence and final-journal plus original ready/intent HMAC
+binding. This is observed causal evidence under the existing terminal contract,
+not a new diagnosis. V92/v93 failures and unknown roots remain; no acceptance,
+retirement repair, new authority or permission reset is claimed.
+
+Independent v92 narrow delta review closes both remaining v91 P2. Primary
+accepts only those corrections: exact fixed authority/runtime-sessions parents
+are checked with nofollow retained descriptors and before/after inode identity
+before interpreting missing/empty state; the symlink counterexample preserves
+old intent, blocks new admission and leaves the foreign target untouched.
+Delayed/deadline fixtures register actual guardian exit observation early and
+finitely join it plus the held child before deletion, retaining failed/unknown
+fixtures and independent causes. The actual relevant regressions pass within
+the v92 run. This accepts neither the42/21 full run nor terminal/full recovery
+or T005. Same producer continues the already localized terminal corrections.
+
+Primary verified v95 terminal correction evidence: exact120 unique regular tar
+members match the list-form manifest and all120 post-run VM source hashes.
+Archive bdcb4d54f653d067a322c2c1a487eeae4bfaeb0034e32d36e3b66690369a63ea;
+manifest c39ef3df4af4fe5bafd51c73bc0f0a4d468697cad9ab3046dcdd88100cee5703.
+Actual dedicated boot48e450a1-f9c2-4c8f-9c86-96cadca3f5e8,
+Node24.16/npm11.13/Docker29.9.2 and the original fixed image are in raw logs.
+Extract/ignore-scripts ci/build/selected Linux tests all0,3pass,0fail/skip/cancel,
+12437.800384ms,stderr empty. Cases cover actual managed retained-image assembly,
+native/fixture ownership and the sealed-terminal held-descriptor/release fence.
+V94's test-owned cleanup EACCES and raw remain; v95 restores modes only through
+the existing private successful-fixture cleanup helper. Original journals and
+unknown roots remain. Independent source review of original terminal authority,
+raw persistence/release and assembly evidence is pending. This component run
+does not pass the earlier63-case suite or full T005, and is not a final unified
+input containing all accepted consumer files. Main continues all original work.
+
+Independent v95 narrow review closes original owner/terminal authority and
+tracked durable terminal write triggers, but finds one P2 in ResourceOps's own
+directory-sync helper: finally close can overwrite a prior sync failure before
+terminal publication. The same producer corrects independent sync/close cause
+preservation and tests retained journal with no terminal/retirement. No new
+diagnosis. Forged terminal API denial is currently source-verified, not a
+separately run negative case; final required verification remains.
+
+The same producer mapped the next actual interface blocker: managed boundary
+and network controls still reject, and existing raw factories are private to the
+unmanaged backend. Primary is settling the first complete boundary-control
+capability, keeping network and qualification readiness unsupported. A private
+proposal (SHA69e2e02a379434bb3f8c39b1f60022192ad13755520d41b51d1cf7d496aadfa7)
+selects an original retained-FD boundary keeper, strict private protocol,
+opaque handle and fixed negative probe; configured-not-authorized guardian ->
+durable control-dependency acknowledgement -> one-shot create authorization
+preserves original no-create/created cleanup proof and parent-loss ordering.
+Independent read-only protocol review is pending. This is not yet an effective
+Plan amendment or implementation authorization for an invented public/circular
+factory; terminal correction continues independently. Same original full Task,
+producer, write bounds, failures and used allowances are preserved.
+
+The fixed boundary-control protocol is now selected after primary correction
+and independent final text review with no remaining P1/P2. Normative detail is
+planner/t005-boundary-control.md SHA
+fbe754110bd3086e1630f7549d3883791965f2fafab1d091f28cad44731aed7d,
+linked from effective planner/t005-build-serialization.md SHA
+f4892e063eae426ce790680e54079997ba1665bfb4a5b23b8d55a46746c9e757.
+The final contract explicitly propagates control-health failures through the
+existing dispose call despite independent confirmed cleanup, rechecks positives
+after dependent settlement, distinguishes intentional shutdown and preserves
+all three original immutable profiles. Root accepts only this protocol and
+issues complete supersedes brief v83 to the SAME full producer. It preserves
+every original acceptance item, source/VM ownership, failure history and used
+allowance; terminal helper corrections continue. Actual boundary implementation,
+Linux/crash tests, network composition and whole T005 acceptance remain pending.
+
+Primary read-only mapping for the later network composition found two concrete
+remaining migration points: legacy runNetworkProbe still creates a raw
+SyntheticNetworkTarget before its managed workload route, so it must use the
+same owned legacy controls before qualification readiness can be enabled.
+ProfileNetworkFixtureController and raw socket factories currently live in
+backend.ts; the standalone controller immediately cleans its interface on
+disconnect. That behavior cannot be reused unchanged as a managed dependency
+keeper, because dependent probes may still own live resources. Reuse the fixed
+target/program/identity-checked interface recipe without a supervisor-to-backend
+import or a public generic factory, while preserving managed dependency-before-
+effect and cleanup-after-original-proof ordering. This is source analysis for
+the next original capability, not a released new network protocol or runtime
+acceptance. Boundary implementation and terminal corrections continue.
+
+Primary narrowly accepts the ResourceOps durability correction v97 after
+independent source review with no P1/P2: both directory sync/close and journal
+write/sync/close preserve their independent causes, settle the real close and
+throw before successful rename/terminal publication. Exact120 unique regular
+archive members match the manifest and all120 post-run hashes; only the two
+owned ResourceOps/test files differ from v95. Archive
+6f16de6447d5696a41b5773309665ee4b86f44009c7ac2dc92a4c376893e32ae;
+manifest84e551d33708ff56c6c24f3c0d2f00c97ca6735b797928fb802594ba53b37c58.
+Actual original dedicated environment extract/ci/build/test/source-after all0,
+selected3/3,270.970042ms,stderr empty. Cases prove held terminal/release,
+directory double-error leaves journal with no terminal/retirement, and failed
+journal write/close leaves original authenticated journal plus failed temporary
+attempt without rename. Double errors are controlled injection; the journal
+case includes actual file write/close. V96's2/3 AggregateError assertion failure
+and evidence remain, v97 changes only that test assertion to inspect nested
+causes. This is not the expanded63-case or final unified T005 acceptance;
+boundary implementation and all original remaining capabilities continue.
+
+Primary selects the next original network-control composition after independent
+protocol review. Initial review localized two P2: reset after dependency release
+could erase negative receipts before the frozen consumer's snapshot; blanket
+disposed-handle denial conflicted with its post-dispose health read. Corrected
+text has no remaining P1/P2. Normative planner/t005-network-controls.md SHA
+96d90ae1b757a3739df240bdd4f5fe209d8a8bdbcad0f43abe1e099b54cd2000
+defines one original socket/interface keeper with original dependency proofs,
+private fixed recipe reuse, legacy-four versus unchanged profile-five strict
+receipts, one-shot measurement/reset and cached post-dispose health. Effective
+planner/t005-build-serialization.md SHA
+ae730545d9895ecde9b3729c6c3c906cd77a909750f86045e371b8cd592f5c12
+and complete supersedes brief v84 release it to the SAME producer after/as the
+unchanged boundary primitives settle. Existing boundary work need not stop or
+repeat unchanged checks. Same source bounds/authority/failures/used allowances
+and full original final acceptance remain; protocol approval is not network
+implementation, Linux qualification, readiness or T005 completion.
+
+Primary independently accepts the executable-graph unit interface/split contract
+(no P1/P2), selected planner/t005-executable-graph-unit.md SHA
+13d11ccaead7d3d03470450dec304fb7bf1fe1d090b37d52719b0bf47031628a.
+Current effective Plan SHA44af383bec9650c02f35eb6a180d9a82d2540f2908c3d79bd2f06d22a2b14288
+and complete original-producer supersedes v85 explicitly transfer only
+package-runtime index/archive/private graph modules and installer/new graph tests
+to the new bounded unit until acceptance. Original producer twice confirmed no
+boundary/network write dependency on those paths. Starting index/archive/test
+bytes match frozen v97 exactly; validation is v97 plus owned overlay, with no
+shared live dist/VM. The unit implements actual FS/SQLite and Mock orchestration/
+retention/reuse; production factory is unchanged/incapable until original
+producer's actual graph copy/verification/recovery is complete. All original
+Task/failure/diagnosis history and root final integration obligations remain.
+
+Boundary v99 source snapshot is independently checked by primary: archive
+6d5067115bef3e05828ef07daeeb68e13003bd437c5f332889192ce93fd13932;
+manifest82214a773c68b00cae2ff036467dd0a02cd588a5507cb30b0cabc9a6480e8b33;
+124 unique regular members, every SHA matching. Source confirms guardian
+boundary-create validates sessionId as plain UUID while actual installer creates
+candidate-<uuid>. The same producer corrects it to the existing candidate/reuse
+ID validator while preserving exact runtime-sessions path binding. Producer
+reports extract/ci/build/source-after0 and test1 before boundary creation; root
+has not yet read that run's raw output and does not accept Linux behavior from
+this report. Earlier v98 build input omitted stable consumer modules; both
+failures/unknown state remain. This source-localized correction does not add
+permission or a diagnostic allowance.
+
+Boundary v101 actual selected Linux test is independently read by primary:
+archive1baad863942a36b833b1aa1142ffcea4878bcc6669869938713fe893fecd1195,
+manifest01a974c92a8a44fe5b1308e859e6d9d8d991f401eeeb99786a0f6a2b2a174692,
+124 unique regular sources matching before/after. Extract/ignore-scripts ci/build/
+test/source-after0; actual selected1/1,0fail/skip/cancel,1688.353685ms,stderr empty.
+Original dedicated boot48e450a1-f9c2-4c8f-9c86-96cadca3f5e8,Node24.16/npm11.13/
+Docker29.9.2 and retained T004 image unchanged. Raw stdout SHA
+718a9d17b800075e1579a4afd42b4de611bf3237f1ba918aa4288191f5841b01.
+The actual tool-offline probe reports six negative facts, with original keeper
+positive controls before/after, exact probe removal and control disposal. The
+installer/runtime port in this test is trusted fixture composition, not complete
+production install qualification. The full boundary/cancel/forgery/parent-loss
+matrix and independent source review remain pending. V100's separate source
+localization was strict IPC parser rejecting normal three-key successful result;
+v101 corrects exact3-key success or one permitted fourth key, no ambiguous5-key
+frame. V99/v100 evidence and retained roots remain. Root review input is exact
+v100 plus parser-only overlay; comparison proves all source/tests identical to
+v101, only three root planning/tracking documents differ. No unchanged retest
+is required for this source-review equivalence. Full T005 stays unaccepted.
+
+Initial independent boundary implementation review on exact source equivalent to
+v101 finds7 P2, accepted by primary source inspection as one same-producer batch:
+parent-death cleanup depends on dead parent's central journal instead of original
+independent probe terminals; stop can race construction and late success; failed
+file acquisition loses an FD and unacknowledged cleanup lacks retained identity;
+only tool-offline is implemented; added canary mounts change the original mount/
+isolation assessment; IPC/error aggregation loses independent causes; boundary
+IPC lacks finite observation while raw ownership must remain. Existing missing
+configure/not-authorized→durable ack→one-shot binding is separately localized by
+the producer and under correction, not a duplicate novel finding. Private exact
+source anchors and batch are retained in t005-start boundary-initial-source-review
+v101 evidence. All corrections fall under selected contract/v85; no scope or
+public API/Plan behavior changes, diagnosis reset or lifecycle transition.
+Discriminating negatives, all3 profiles, original parent-loss/raw/health matrix
+and independent correction review remain required. V1011/1 is narrow evidence
+only; no boundary/T005 implementation acceptance.
+
+Executable-graph unit first implementation is retained only in a private v97
+overlay, not integrated into live source. Primary freezes121 exact files, with
+only index.ts changed plus executable-graph.test.ts added;119 other v97 files
+match. Archive3e0f10bfe4e730356e2acdd94e3c931343b13975b22b11ff24cbccfc95999581,
+manifest34439d5a792ba7bcf353011f6c7a050abf76e9149c2bbdbb0bede34479efb530.
+Implementer reports5 new tests pass, but package cumulative82pass3fail3skip;
+reports the same three synthetic-unverified recovery regex failures on clean
+v97 control. Raw command evidence was not supplied, so these remain attributed
+reports. Full host cumulative and exact raw/env/before-after manifests remain
+required. Primary source check identifies a definite compatibility P2: adding
+graph:null unconditionally to readAssemblyMaterial changes graph-absent v0.1
+materialDigest. Same unit worker corrects omission/formula regression and the
+owned stale assertions without relaxing unknown/evidence semantics, then runs
+changed-input required checks with retained raw. Independent initial implementation
+review is underway on the frozen first source; no unit/production/T005 acceptance
+or source-ownership return. All original history/diagnostic allowances remain.
+
+Primary reads boundary v103 raw and verifies124 source/postrun hashes, archive
+517fce6a7ea5d67944598843c64b55ac4c037838133bf1f8d45a76149fcf6170,
+manifest00993d8807fe125364b3c06a38b31a5fcd0e74c86c7a618ee21832eac96b568a.
+Actual extract/ignore-scripts ci/build/test/source-after0, selected1/1 with a
+loop over all3 immutable profiles,0fail/skip/cancel,1827.045321ms,stderr empty.
+The test verifies original fixed configuration and six negative facts per profile,
+then original positive controls and exact cleanup. Raw stdout SHA
+092901d2669398b478eb8fef05ff71fa040c0964cd0c799cca5ae99118b71f86; unchanged
+boot/Node24.16/npm11.13/Docker29.9.2/T004 image. Producer reports configured
+receipt→keeper ack→create authorization/terminal direction, no added boundary
+mounts, finite boundary IPC and error propagation; remaining lifecycle/fault
+coverage and independent correction review are not complete. V102 first attempt
+built but failed an added configuration inspection assertion that omitted the
+existing binding field; its raw/state are retained. V103 corrects that assertion.
+This is a changed-input all-profile happy-path component, not full boundary or
+installation recovery acceptance. Current control snapshots retain stable
+transferred graph bytes rather than another worker's in-flight implementation.
+
+Initial independent executable-graph implementation review verifies121/121 and
+confirms5 further P2 beyond primary's graph:null compatibility finding. Primary
+source inspection accepts the batch: retained builder reconstruction adds its
+own future output; original assembly uses node resolved-lock identity while
+verification uses whole-graph identity; concurrent publication ignores the
+winner's reconstructed closure and reuses new-candidate material; materialDigest
+hashes absolute internal paths instead of semantic projection; new fixture
+finally blocks unconditionally remove unexpected-failure/unknown evidence. Empty
+Mock receipts and graph-presence/count verification miss the receipt mismatches.
+Same graph unit worker owns complete corrections, strict v2-compatible Mock
+material/receipt equality tests, built-child chain, unknown successor/replay
+blocking, concurrent identical/conflict outputs and original full unit matrix.
+Required current-input cumulative/raw/env/manifests remain. No graph source is
+yet integrated into live worktree or returned to producer; no production graph
+capability, Task acceptance or additional diagnostic allowance is implied.
+
+Primary reads v105 changed-construction boundary raw and verifies124/124 plus
+identical source-after manifest: archive
+8103c46922ce284ccec98d74da71b01c3918a2ab72b9e4ede633fb095018c10d,
+manifestc758ddd53a541354d2f109761ad2a2ef543f4cd58377e4d7050bb20a12945af6.
+Extract/ignore-scripts ci/build/test/source-after0; selected all3-profile normal
+path1/1,0fail/skip/cancel,1787.573423ms,stderr empty, original environment.
+Stdout SHAeac1ef65cf971c70d538d65bed14b5a55e9170402983ba0062c51e534c8fbdc3.
+First attempt's build/test also0/1pass, but source_after1; producer attributes
+it to missing manifest in payload, with original verifier traceback retained.
+Primary independently reads those first exit/TAP records, not the attribution
+traceback. Neither attempt establishes the missing fault matrix. Producer
+reports construction sealing/draining, retained parent/directory checks,
+independent FD closes/write+close causes and original dependency-terminal
+cleanup; independent corrected-source review and discriminating actual tests
+remain required before boundary acceptance. No new diagnosis or Task transition.
+
+Primary reads v107 actual replacement/all-profile raw2/2,1950.706911ms,
+0fail/skip/cancel,extract/ci/build/test/source-after0,stderr empty, original
+environment.124 source/postrun hashes match; archive
+8ba5748fb0fd6df1cf40bc3d90887d5897460b790a00c66dc82ba3c8ca6f063a,
+manifest26d52c5383d112f52eb0b88d9c68e98fe0073fde80b1d9c32c52cdd253881613.
+Source shows the new direct keeper protocol test returns cleanupConfirmed=false
+and preserves the replacement, then joins original guardian before fixture
+cleanup. This is not a verified BuildAuthority SIGKILL recovery scenario or full
+keeper-group matrix. V106's omitted command-record test file remains attributed
+producer provenance failure; no unchanged rerun merely to repair audit metadata
+is required. Primary returns that observed efficiency correction to producer.
+
+Corrected graph v4 is independently frozen121 exact sources (only index/installer
+modified plus newgraph test), archive
+fec09c821e04839cf03bf76c0dc854e2ad5a74445a1c0fd8b014209d11661069,
+manifesteacf90d4dd15ab82d6f0bfbb72646d0f43d83e3d03116f1898ad395345b67d4b.
+Primary reads real static0,installer54/54,graph9/9 raw and fullnpmtest exit1,
+229total208pass5fail16skip,30214.130792ms. Stdout/stderr are merged, not empty
+separate stderr. Source-before is original v97 120, not current tested prestate;
+source-after120 omitsnewtest though its SHA is in diff. Next necessary changed
+input must record true complete121 pre/post. Independent correction review closes
+all product-source P2 (including legacy formula), but retains2 test P2: success
+flags before digest assertions can delete failed roots; direct private registry
+publish test does not exercise actual installer winner closure branch. Same unit
+worker corrects both, actual two-install pre-publication interleaving using
+existing trusted pre-BEGIN authority-file synchronization hooks, strict receipt
+and winner/conflict evidence, no new public API or primitive changes.
+
+Whole-host5 failures are source-localized to3 old sandbox error assertions,
+a late-attached rejection observer, and direct JSON marker publication before
+parent exists/parse synchronization. Current Plan
+4f509f9fa1e72fe7386fc22334f7f240764d7200adae0ebb80a6cc72eb7bbb0d and complete
+producer supersedes v86 assign the original producer a minimal live and v97-
+derived four-path compatibility overlay. Graph worker cannot write those paths;
+its next required whole-host check uses exact accepted compat files plus owned
+graph on v97, never live control WIP. Failed cumulative is not waived or accepted.
+No source transfer, production graph readiness, Task acceptance or diagnosis
+reset. Original full boundary/network/provider/T004/storage/productiongraph/final
+obligations continue. runtime-oci/index remains original producer scope; only
+package-runtime/index and selected graph unit files transferred.
+
+T005 graph unit acceptance and ownership return: primary verifies the exact
+accepted-v6 archive63e8bd2022b6b581f1f85d3f0aa2665cb23dbde74dca60a0e373f305c95a96dc,
+manifestb0b28b6f9382a5902cd4a9b23daa2d5373ec898590e1965d19de5839fc5d33e3,
+121 regular sources with identical true pre/post hashes. Actual pinned Node24.16/
+npm11.13 format/lint/build and whole-host npmtest exit0;230total214pass0fail
+16Linuxskip,30520.312834ms. Combined stdout/stderr raw SHA
+2d303ba7c51b8d2f66edaba1a9eb0c37c29ba8cf91cf6dcd69b20d2186c37037. Independent
+correction review closes all product/test P1/P2, including actual two-installer
+winner/conflict interleavings and retention after failed assertions. This is an
+explicit v97+graph+accepted three-path compatibility overlay, not live production
+or actual Linux graph acceptance. The separate compatibility correction has
+independent no-P1/P2 source review and root AST equivalence to its tested input;
+its corrected input is cumulatively tested in accepted-v6.
+
+Only three owned files are copied into live after original hash guards, and root
+verifies exact regular single-link file hashes: package-runtime/index
+c8c7dab17ad2f49d3d822d017886297810461988a703d12aa8c2d584fb10dad7;
+installer.test a6ca3d9c19630bb81e92a8ba5d808bb465e59f671f8dfef2827a8f51787e82b4;
+executable-graph.test7d0e76be2936405980615a73321a468ed71875ad55f41c084926ede4a7dfedc3.
+No compatibility baseline file overwrites live boundary tests. Root's complete
+producer supersedes v87 returns all selected package-runtime/graph test paths to
+the original producer; the separate unit's write scope ends. Original production
+multi-node copy/mapping/verification/recovery, boundary fault matrix, network,
+provider-root ownership, managed-T004 handoff, finite storage, unified host/Linux
+acceptance, actual USE-003 and whole-Task independent review all remain required.
+No Task transition, commit/push or diagnosis reset follows this component.
+
+Primary now requests one bounded independent read-only correction review of
+the existing exact v107 boundary source (124 verified members), while the same
+producer completes network work. Reason: close or retain the original seven
+boundary P2 against stable corrected source before full fault-matrix execution;
+no live mutable-source review, VM use, tests or writes by the reviewer. Scope is
+boundary keeper/probe/ResourceOps/client protocol and its fault tests, not graph,
+network WIP or whole T005. Primary aggregates the findings with actual v107 raw
+and still-required fault evidence before any boundary acceptance. Review source
+is an independently extracted exact artifact under private temporary storage;
+original archive/manifest and failed histories remain unchanged.
+
+Network v109 packaging failure is retained before any network test executes.
+Primary reads the copied raw extract0/npmci0/build1/test125 and TS2307 imports
+for the two omitted reference-simulator adapter files. Snapshot is94 files;
+the same producer is adding only those required files for the next bounded
+changed-input run. This is a localized source-whitelist omission, not an actual
+network keeper execution failure or a new diagnosis allowance. Producer also
+reports the missing domain-plus-NUL receipt HMAC prefix corrected with host
+build0; that behavior still needs exact frozen source/raw verification.
+
+Primary's read-only final-acceptance preparation also finds the existing
+tests/linux/packages/install.test.ts always removes the inspection container by
+name and recursively deletes its root in finally, including failure/unknown or
+create collision. The same producer owns correction under the original fixture
+evidence/owned cleanup boundary, with actual identity and raw-settlement proof;
+no new Task, generic cleanup authority or isolated rerun is authorized by this
+finding. The current final integration scope remains unchanged.
+
+V107 independent boundary correction review and primary scoped source checks
+retain7 P2, no P1: configured-only failure uses an idle-exit path that necessarily
+rejects after configure; configure/create/inspect can advance after stop; outer
+control bindings do not compare actual nested intent/child/canary/session facts;
+secret-child error/exit listeners arrive after awaits; early IPC errors lose
+nested independent causes; send callback precedes the observation timeout; and
+original durable create-success plus immutable first-outcome terminal proof is
+missing. Exact triggers/lines/required behavior are recorded in private
+t005-boundary-correction-review-v107.md and returned together to the same
+producer. Original three-profile/mount/retained-FD fixes remain narrowly closed;
+full actual fault matrix and independent corrected-source acceptance remain.
+This is correction under unchanged selected protocol, not new API authority,
+Task scope, authorization or diagnosis allowance. Network WIP is not attributed
+to the old frozen source; shared paths must satisfy the same selected guarantees.
+
+Primary independently verifies network-control v112's96 exact regular archive
+members and identical complete postrun manifest. Archive
+2a24211fef07f892a00500031877370c6579e1595b953ae1ed5a9659efcbd31c;
+manifest74df1758b6dff069a17202ac7cd41184940e0cd5f30e6266ab42d8736659cd79.
+Actual dedicated VM extract/npmci/build/test/source-after0; Node24.16/npm11.13,
+original boot/Docker29.9.2;1/1,0fail/skip/cancel,1315.919561ms,stderr0;
+stdout7be7507e2f7037f6e5bafc82f3d1d7078af77a9639de9807cc41026bdc285221.
+Source test covers real fixed listener positives, one reset, settled zero-traffic
+legacy snapshot, denied later positive/reset, clean dispose and cached post-dispose
+health. It runs a controlled nativeRuntime/custom factory, not full production
+factory acceptance. No dependent sandbox probe is attempted in this test; zero
+traffic after reset is not an isolation denial proof. Profile interface/UDPv6,
+dependency/probe paths, cancellation/loss/forgery/errors and actual fault matrix
+remain unimplemented or unverified. Producer retains failed v109 packaging,
+v110 creation-receipt bootId omission and v111 empty AggregateError terminal
+error, with observed corrections and no diagnostic reset. T005 remains pending.
+
+Primary requests a bounded independent read-only review of the exact frozen v112
+network-control implementation, while the same producer corrects boundary paths.
+Reason: v112 is actual narrow control evidence but has not had implementation
+review; catch original listener/interface/epoch/health/disposal ownership errors
+before full integration. Scope is the fixed network catalog, control keeper,
+client and ResourceOps handles/receipts only, excluding boundary findings already
+returned and the explicitly unfinished dependent-probe migration. No live WIP,
+VM, tests or writes. Primary aggregates the frozen source findings with v112 raw
+and future actual dependency/fault evidence; no component or Task acceptance is
+implied by dispatch.
+
+Primary also reads retained actual v110/v111 raw: each extract/ci/build0,
+selected test0pass1fail/no skip/cancel, source-after0, stderr0. V110 fails durable
+network creation authentication; exact v110->v111 guardian delta adds the missing
+bootId to its receipt payload. V111 reaches disposal then reports an empty
+AggregateError; exact v111->v112 delta omits that error when the collected failure
+list is empty. ResourceOps bytes are unchanged across these two corrections.
+This is observed source/raw causal localization, not silent baseline repair or
+another diagnostic window. Their failed state roots remain retained.
+
+V112 independent control implementation review and primary source checks retain
+7 P2/no P1 under the already selected protocol: double-escaped profile ifindex
+regex; client/accepted sockets considered settled before actual close; cleanup
+racing construction and losing a successful link-add fact; noncached/concurrent
+first snapshot; false healthy during/after failed disposal; unbound fixed session
+paths/interface derivation; discarded original ip error/diagnostics. Exact
+triggers/lines/required corrections are returned as one same-producer batch in
+private t005-network-controls-review-v112.md. Explicitly unfinished dependent
+probe migration is not counted as a finding. Actual legacy1/1 stays narrow;
+profile/socket/writer/loss/cancellation/health/forgery/error matrix remains.
+No protocol authority, scope, diagnostic allowance or Task acceptance changes.
+
+Primary verifies boundary v114's128 exact regular archive members/prepost hashes:
+archivef77b3af800589dc15791e72a6468ba79c45d40e5f9bac3e80a6b3ff52b0b6702,
+manifestcceaecdb17266b11ace5dafbf7dca3e353a5c69fe37bfddc8e801a11f0fd9dd1.
+Actual dedicated extract/ci/build/test/source-after0, original pinned env,1/1
+0fail/skip/cancel,1162.156764ms,stderr0;stdout
+6b6fc8126817f6039459e7002638b5595b746cad56f856caac56a365a904f420.
+The case exercises configured receipt -> beforeProbeCreate failure -> original
+authenticated no-create terminal -> confirmed probe journal -> control disposal.
+It is actual narrow regression evidence; all remaining correction source review
+and original phase/loss/heldwriter/forgery/errors matrix are still required.
+
+Primary reuses the same read-only reviewer for exact frozen v114 boundary
+correction closure against the prior7 P2. Reason/scope/aggregation stay the
+boundary-only review above: inspect the implemented corrections now, while the
+same producer completes required fault tests/network work. No mutable-source
+review or VM/test/write is requested. Primary combines closure findings with
+actual narrow v114 and future full matrix before accepting this capability.
+
+Independent v114 source review and primary scoped checks retain6 P2/no P1.
+Normal configured-only no-create, early IPC nested cause serialization and shared
+absolute send+reply observation improve, but remaining paths are: responsibility
+retained only after config receipt validation or parent journal; stop fencing
+before retaining successful create/inspect facts; configurator's cross-session
+receipt writes before keeper rejection; no-PID spawn failure before listeners;
+terminal lacking first execution outcome/explicit never-started; and new boundary
+probe create missing its finite observation wrapper. Complete same-producer batch
+is private t005-boundary-correction-review-v114.md under unchanged contract.
+V114 test hook fails before keeper dependency registration, so its actual1/1
+does not establish post-registration journal failure or held-phase cleanup.
+Original failures, used allowances and full missing matrix remain; no Task or
+capability acceptance follows this source review.
+
+Primary verifies v116's128 exact regular members and identical complete pre/post:
+archived3f169558e9b4a0c224978ea9edaae17212d4377b79bdc0dcb0f0ee73c6798b0,
+manifestdc988ef47183aa435d50d5ee42fe9602e271b0e6de46c0290591b265728446fd.
+Actual dedicated extract/ci/build/test/source-after0, pinned original env,
+profile control1/1,0fail/skip/cancel,1470.102375ms,stderr0;stdout
+1c0dee3a9e8dbe91c93ab7d5c535004f5669f41b2181478a215e27d5d56ba1a3.
+Source test uses real fixed profile interface/ifindex and all5 positive targets,
+single reset, concurrent strict-identical zero-traffic snapshots, exact dispose
+and post-dispose health. It runs no dependent sandbox traffic and is not full
+production or network isolation evidence. Primary reads preserved v115 raw
+0pass1fail (post-dispose incorrectly rejected), source-after0/stderr0; the exact
+correction reorders normal disposed versus disposing checks while keeping prior
+health failure first. Its failed fixture remains preserved.
+
+Primary reuses the same independent read-only reviewer for frozen v116 network
+control correction closure against the original7 P2; reason/scope/aggregation
+remain the prior network-only review. No live WIP, test/VM/write is requested.
+Actual remaining control fault matrix, dependent probes and full T005 still
+belong to the same producer and remain pending regardless of source closure.
+
+Primary verifies v118's128 exact regular sources/prepost, archive
+cae0edeb33cb7d2c410cc495f3890abd6906dbf8492fd6cbc5ad51ac0a0615b9,
+manifest3dea577d151c21a14a3e4a703f05bcd73984d3146908e2423d79a6bcba62330c.
+Actual pinned Linux extract/ci/build/test/post0; named guardian forgery case1/1,
+0fail/skip/cancel,43.75199ms,stderr0;stdout
+e1024769f4f4252a1d79009dec27e435c3a1134769857d88fbf4ff10c70ab949.
+V117 is the identical source input but selects managed-resource-ops.test rather
+than guardian-native.test: raw is a green file-level1/1 with no named case.
+Primary explicitly excludes it as evidence for the new test. V118 executes the
+missing required case; it is not an unnecessary successful-test reporting rerun.
+Only engineering context and guardian-native test differ from v116; production
+control bytes are identical. The test sends a caller-selected profile interface,
+expects invalid-frame rejection and absent receipt/terminal, then observes real
+guardian exit and preserves unexpected failures. Its fake boot/key and direct
+protocol fixture are not production recovery proof. Existing scoped reviewer
+receives this additional exact test/raw evidence without restarting production
+source review or claiming the remaining fault matrix complete.
+
+Independent v116 network correction review and primary source checks retain6
+P2/no P1: actual link-add success lost to stop fence; ip error incorrectly proves
+raw close; health failure skips eligible exact physical interface cleanup; cached
+snapshot lacks post-health-await lifecycle check; IPC discards nested ip causes;
+and concurrent cleanup lacks a shared in-progress promise. Complete same-producer
+batch is private t005-network-controls-review-v116.md. Original ifindex escaping,
+socket-close registration, fixed interface/MAC/session layouts and false healthy
+triggers are corrected at source, but their required fault evidence and remaining
+partial paths still block network acceptance. Actual profile1/1 and forgery1/1
+do not cover those races or dependent sandbox traffic. No scope/authority/diagnosis
+or Task status changes follow this review.
+
+Primary verifies boundary v119's128 exact regular sources and true identical
+pre/post, archive6c18b1f35ec9f2a3be100bcd402ebbeaf25638375a1b6d94dd6ba29446d9bec3,
+manifest181587c3e46f494d1e5286d89eb6314ba06eb41076b8439fbf2db42b4eeceb86.
+Actual dedicated extract/ci/build/test/post0, original pinned env, selected2/2,
+0fail/skip/cancel,1957.797172ms,stderr0;stdout
+0cb6d774ad0039f803dc11e1e842e3a694a8bba9a467478e61a0e295c1d2afa9.
+Source now injects beforeBoundaryDependencyPersist AFTER returned keeper ack,
+before fallible parent persistence and before create authorization. That case
+confirms authentic original no-create terminal/journal/group settlement and
+control disposal. The normal all-profile boundary case also includes a created
+but never-started probe terminal. These two narrow cases are not held configure/
+create/inspect or actual parent-death recovery. Actual command first-outcome,
+all6 source correction closure and original full fault matrix still need review/
+evidence. The same independent reviewer receives exact v119 boundary-only closure
+scope while the same producer continues network6 and boundary faults; no live
+review/test/VM/write or component acceptance is implied.
+
+Independent v119 boundary review and primary exact-source checks retain4 P2/no
+P1: successful configured receipt still fenced before cleanup-state capture;
+nested control/ownership identities still inconsistent before first file effect;
+actual secret-child spawn Error replaced by generic text; and first-execution
+receipt failure rejects an unobserved completion and aborts independent cleanup.
+Same-producer complete residual batch is private
+t005-boundary-correction-review-v119.md. Parent attempted configure/returned ack,
+create/inspect fact capture, common session paths, early listener order, separate
+command/never-started proof and create deadline have improved at source. Actual
+held configure/create/inspect, SIGKILL, forgery, IPC and independent persistence/
+cleanup-error matrix still required. No component/Task acceptance or allowance
+reset follows the actual2/2 and source review.
+
+Primary verifies network v121's128 exact regular sources and complete unchanged
+pre/post, archivebd069483b01fa2d01b5803e4d7cad1016aa44ddcd0038297fea9297c2cdd02af,
+manifest3f6341b4f3140f7d2e4697c7a83391a8f92a91993a4eb9e1ea01821d4e09eb6c.
+Actual dedicated extract/ci/build/test/post0, pinned env, profile test1/1,
+0fail/skip/cancel,1496.735047ms,stderr0;stdout
+b5ece032aa7f958cda1c0662c548b8f691e4ebfe11673c7f4dd19b2532103461.
+The changed test now races a cached-health snapshot with immediate dispose and
+requires local lifecycle rejection plus clean disposal/postdispose health. Source
+retains one pending snapshot/health operation, clears settled work, joins it during
+dispose and uses private nominal NetworkControlDisposingError to distinguish a
+local lifecycle rejection from a real health error; root scoped source check
+does not find string-based error suppression in that path. This is narrow
+regression evidence, not network/fullTask acceptance or final independent closure.
+Primary verifies v120/v121 manifests differ only in resource-ops. Producer exports
+original v120 failed raw without a rerun; primary reads actual extract/ci/build0,
+test1,0pass1fail/no skip/cancel, original pinned env/stderr0. The expected local
+disposing rejection instead receives the keeper-sealed health error, matching
+the source-localized cached-work ownership correction. Original failure state
+and logs remain attributed to v120. Remaining network batch and boundary4
+fault corrections still belong to the same producer; no new diagnostic window.
+
+Primary verifies boundary v122's128 exact regular sources/true matching prepost:
+archive9e29e18c750a7eb293a8cc899c3d00aed8a60f1608cbde0fa3ebef07c037fa59,
+manifest0bca48f042b57e265bab51e1ec8f86e9484ad14ccc210a382fd27b034709cbca.
+Actual dedicated extract/ci/build/test/post0, pinned env, selected3/3,
+0fail/skip/cancel,1939.42773ms,stderr0;stdout
+ddc97049583d52c4bea78250db5e729f48b7cbb8ec6807a7dcc8301eddd3dabf.
+Names actually executed are malformed nested control-tag before configure write,
+all-profile normal boundary and post-keeper-ack no-create. Only engineering
+context/guardian-worker/guardian-native test differ from v121. This adds an actual
+zero-write identity negative, not a complete forged/loss/error matrix. Primary
+reuses the same boundary-only read-only reviewer for closure of v119's4 source
+residuals (including new first-execution persistence failure settlement) against
+this exact frozen input, while producer completes remaining faults/network work.
+No live source/test/VM/write or capability/Task acceptance follows dispatch.
+
+V122 boundary correction review and primary exact-source check retain1 P2/no P1:
+ordinary nonzero inspect/stop/rm returns only affect cleanupConfirmed, losing
+their bounded independent exit/stderr/settlement causes when a receipt failure
+already exists. Same-producer correction is private
+t005-boundary-correction-review-v122.md, with required receipt-persistence plus
+rm-nonzero dual-failure regression. The other v119 source triggers are closed
+as specified; actual held phases, child early error, parent SIGKILL, dual errors
+and IPC matrix still required. No boundary/Task acceptance or diagnosis reset.
+
+Primary verifies v124's128 unique regular archive members/exact manifest/prepost:
+archive05893c5c3e8a3ad515825c1eb877246395bb69ebd947f293efa8037e4db0d698,
+manifest89c593dfa36bb9454f852b30768520bf5e7a6c4264ef17c7ab4d6aec53153e74.
+Actual dedicated extract/ci/build/test/post0, pinned env, selected1/1,
+0fail/skip/cancel,55.476266ms,stderr0;stdout
+94873808600099b53b53a4c02d4fe2dce265301c191aaae98417c2eab63c10a5.
+It is an actual Linux guardian with a controlled fake-Docker executable, fixed
+fake IDs/key and no real daemon object: first-execution receipt path is a directory
+to force EISDIR; exact fake rm returns17 plus bounded stderr; completion contains
+both causes and remains unconfirmed, then original guardian exit is observed.
+This is independent error-path evidence, not an actual daemon removal failure or
+whole recovery. Only guardian-worker/native test differ from frozen v122.
+Primary reads retained v123 actual0pass1fail (invalid dependency authorization)
+and exact v123->v124 test diff adds the existing HMAC domain plus NUL prefix;
+no production repair is attributed to that test-input error. Same reviewer now
+checks v124 boundary-only closure of the last v122 source P2 and adjacent error
+path, with no VM/test/write. Original full fault matrix remains pending.
+
+Independent v124 review and primary scoped checks close original nonzero-cleanup
+cause omission but find2 introduced P2: healthy command completion constructs a
+nonempty-message AggregateError from an empty list, and cleanup copies command
+failures before its awaited terminal assigns them. Same-producer complete batch
+is private t005-boundary-correction-review-v124.md; required healthy command and
+held command-failure/cleanup interleaving regressions distinguish these from the
+actual never-started dual-error1/1. Original full fault matrix remains pending;
+no capability/Task acceptance or diagnostic reset follows source improvements.
+
+Primary verifies v125b's128 unique regular sources/exact manifest and unchanged
+pre/post, archive6b621287ac81055cd77160c0c1d81152225a54b24a90d22c66fd5093eb0dd81f,
+manifest064ecd7f4f73149f18bc8a26c8db0fdedbeef920a48bb3582668c2e19994f1fa.
+Actual dedicated extract/ci/build/test/post0, pinned env, selected2/2,
+0fail/skip/cancel,240.466175ms,stderr0;stdout
+a7db5e976f71012ac6b8b44ca24c9bd6e689b1e26ee9c15c6c7f87951f43e65a.
+Only guardian-worker and guardian-native tests differ from frozen v124. The
+healthy held-command assertion checks the full exact command result (therefore
+no errorMessage); the held inspect23/stderr failure remains in command and final
+completion despite later successful removal. These are actual Linux guardian
+tests using the legacy fixed-probe protocol and controlled fake Docker, covering
+the shared command-terminal regression, not boundary receipt or real-daemon
+recovery acceptance. Primary source checks find the empty error list omitted and
+the command terminal joined before copying its failures. The same independent
+read-only reviewer checks closure of v124's2 P2 against this frozen input; no
+live-source review, test, VM operation or write is requested. Final aggregation
+remains primary acceptance of the full original T005 matrix. Primary also reads
+the retained v125 setup-failure record: host Python rejected tarfile's filter
+keyword before source verification or test execution; it is not a runtime test
+failure. Managed legacy routing Mock results are producer-reported only, and
+production network dependency preparation remains unsupported/fail-closed.
+
+Independent v125b closure verifies the same128 exact regular sources and raw2/2,
+finds no actionable P1/P2 in the scoped delta, and closes both v124 triggers.
+Primary accepts only this shared command-terminal correction; all original
+boundary identity/receipt/daemon/held/SIGKILL/IPC and full T005 obligations remain.
+The original producer's component return identifies the concrete next existing
+Plan work: ResourceOps still rejects both managed network selections before
+guardian creation; the keeper has dependency storage but lacks configure,
+register/release IPC, authenticated dependency receipt and network probe intent.
+The selected network protocol already specifies these, so no Plan/API/authority
+change or new diagnosis is needed. Primary returns the scoped accepted review
+and requires that same producer to complete the existing network migration and
+remaining full v87 delivery, rather than treating this component as Task completion.
+
+Primary updates the existing T005 GitHub progress comment with the scoped v125b
+closure and remaining network/full-Task limits, preserving its previous body.
+Returned comment6489220633 matches the exact submitted27052-character body,
+updated2026-10-29T17:25:32Z. Private before/payload/returned files use the
+tracking-v125b-closure prefix. Issue/Task remain open/in_progress; no code commit,
+push or acceptance status change is performed.
+
+Managed-network delivery segment mandatory stop: after v125b closure, primary
+returns the original full brief and concrete existing network lifecycle work to
+the same producer. Its first return reports only a host build and existing source
+inspection, explicitly no additional edits. Primary gives the same producer one
+clear execution correction requiring actual implementation and necessary tests;
+the next return again confirms the lifecycle is unimplemented, with no source
+change or genuinely new causal localization. These are two consecutive
+non-progressing implementation returns for the same network objective. No new
+dispatch or diagnosis is permitted under root AGENTS/stage protocol: all segment
+allowances remain used, and broader prior authorization does not reset them.
+The producer is already completed/idle; there is no identified running segment
+test/build to cancel. Preserve all work/evidence/unknown objects and leave
+T005 in_progress. No Git reset, cleanup, service stop, lifecycle advance, commit
+or push occurs. This is an execution-convergence stop, not a new robot/account/
+paid-resource authorization gap. Next required direction is whether to replace
+the non-executing implementation context, carrying the same full contract,
+ownership handoff, failed history and exhausted diagnostic allowances. Root
+must not silently redispatch or treat component closure as Task completion.

@@ -19,10 +19,110 @@ Do not attempt an atomic lifecycle commit by calling two independent database
 transactions. The implementation must expose a narrow shared transaction adapter;
 it must not expose arbitrary SQL or a database handle to workloads.
 
+### Observed T005 integration constraints
+
+The current, still-unaccepted T005 implementation opens its own
+`installerRoot/registry/registry.sqlite` in `DisabledRegistry.open`, while
+`PolicyAuthority` opens the separately configured policy database. Its package
+tables use `package_registry_metadata` with `qdroid.package-registry/v2`;
+PolicyAuthority owns `PRAGMA user_version`. Passing the same file path alone
+does not expose a shared transaction or make the existing public methods compose
+atomically. Recheck these actual APIs after T005 acceptance before making this
+draft effective.
+
+T005 has since selected a preserving namespaced v3 registry extension with
+nullable graph-material references; that graph contract passed its independent
+pre-implementation check, but its code/acceptance is still pending. Recheck the
+actual accepted schema rather than assuming v2 or treating the selection as an
+implemented migration. A graph version's reference is the complete retained
+closure: node sources/inventories, generated outputs, builder receipts/images
+and root runtime material. Selection, running-task retention and collection must
+account for that closure and T005's retained unknown/uncommitted references;
+deleting only by a root package/image reference is insufficient. This extends
+the draft's integration prerequisites and does not release T006 implementation.
+
+The T006 effective plan must select one trusted transaction authority and explain
+how existing disabled-version records and policy/admission history reach it.
+If an offline import is needed, establish actual writer exclusion and settled
+resource ownership first; preserve immutable IDs, material references and policy
+history, make import restart-safe, and reject conflicts or unsupported formats
+without replacing either source. Do not introduce a best-effort dual-write or
+discard existing state to simplify the new composition. This records a required
+integration decision, not an approved migration implementation or permission to
+modify the current T005 database layout.
+
 Retain T001–T003 protocol behavior and state history. Removal must fence both the
 legacy readonly path and the counter admission/dispatch path. Today the legacy
 grant evaluator does not inspect installation policy; setting only
 `installation_allowed=false` would leave that path callable.
+
+## Candidate transaction adapter and import method
+
+This is a concrete planning candidate, not the effective T006 implementation
+contract. Reconcile it with accepted T005 APIs/schema and independently review
+its persistence/concurrency behavior before selecting it. It does not change
+T005's current storage paths or release T006 implementation early.
+
+Reuse node:sqlite and the canonical installer registry file for the new runtime's
+single authority. A host-only store owns one configured DatabaseSync connection
+and synchronous BEGIN IMMEDIATE/COMMIT/ROLLBACK. Policy, installed-version,
+selection and retention components receive private domain adapters backed by
+that same connection. Lifecycle removal/selection coordinates their domain
+mutations inside one store transaction. Do not compose existing public methods
+that each begin/commit independently: today's PolicyAuthority.transaction is
+private and starts a new transaction, and today's DisabledRegistry opens another
+connection per operation. Sharing the filename alone is insufficient.
+
+Keep the existing standalone PolicyAuthority fixture constructor and T001–T003
+behavior. Add a trusted composition path backed by the actual store; do not pass
+a raw database, SQL, transaction callback or serializable transaction token over
+workload RPC. A transaction context is an actual local object, invalidated after
+commit/rollback, accepted only by its owning store and private domain adapters.
+No await, external provider call, readiness check or filesystem operation belongs
+inside this synchronous write transaction. Reject async transaction callbacks
+instead of accidentally committing before their awaited work. Existing public
+policy entry points continue to create their own short transactions; lifecycle
+composition uses explicit internal mutation methods in the already active one,
+so nested BEGIN and partial commits cannot appear.
+
+For an existing separately configured policy database, prefer an offline,
+restart-safe one-way import into this canonical authority rather than a runtime
+dual-write. First confirm actual old runtime/installer owners have exited and
+settled their owned resources, and acquire the required manager/build exclusion.
+The controlled test/runtime startup configuration must use only the canonical
+authority after cutover. A new advisory lock alone cannot fence an older binary
+that never participates in it. Do not import while an old process can continue
+authoritative writes or dispatched work against the source database.
+
+Read a validated, writer-excluded source snapshot through fixed schema/table
+queries. Create it with a SQLite-aware snapshot/backup method that includes
+committed WAL content; copying only the main database file is insufficient.
+Preserve installation/instance/grant/task/admission/audit IDs,
+generations, unknown outcomes and history exactly; import no triggers, views,
+extensions or source-supplied SQL. Verify all expected schema versions,
+constraints and references. Reject future/unknown layouts and destination
+conflicts. A namespaced import record binds the source snapshot digest and
+schema to the completed destination rows. Insert all destination policy data
+and this completed marker in one destination transaction; never change package
+version rows or replace PolicyAuthority's user_version with a package version.
+
+Leave the original source snapshot unchanged and retained. This avoids needing
+a cross-database atomic write: before the destination transaction commits there
+is no completed import; after commit the marker and imported rows agree. A
+restart with the same snapshot verifies/reuses that completion; another snapshot
+or conflicting preexisting destination policy state is rejected. Do not mark
+source migration separately and then claim two WAL databases committed
+atomically. The durable startup/cutover choice, actual writer exclusion and
+resource settlement are prerequisites for using the destination as authority;
+a successful row copy alone does not establish them.
+
+Candidate acceptance includes an attempted async transaction, cross-store or
+retired context, rollback after one domain mutation, and actual independent
+connection visibility before/after the single commit. Import tests interrupt
+before commit and after commit, preserve the unchanged source and every ID,
+reject conflicting retries/future layouts, and prove no old writer/unknown
+resource was bypassed. These supplement the existing required lifecycle cases;
+they do not constitute an accepted adapter or import implementation.
 
 ## Selection and failure ordering
 
@@ -131,6 +231,14 @@ session busy and its candidate/version/image references retained. No recovery
 path may rerun the original qualifier or build. Align the exact internal port
 to accepted T004/T005 code before implementation.
 
+Reuse T005's continuous BuildSession/production ResourceOps ownership across
+post-qualification native fingerprint preflight and execution-journal handoff.
+Confirmed qualifier cleanup does not close ownership of those later command
+groups. The shared manager must retain its exclusion and references until that
+same session's remaining resources are accounted for and cleanup is confirmed.
+This is the accepted T005 composition requirement; its actual implementation
+and API still need acceptance before this T006 draft becomes effective.
+
 Use existing current qualification handles only for their exact immutable
 image/profile/host tuple. A new image still needs its own actual qualification.
 Readiness without privileged grants and already qualified 768 MiB application
@@ -189,6 +297,8 @@ rule of retaining sealed images rather than partially implementing image GC.
 - Crash qualification at actual legacy/profile resource creation boundaries;
   fresh recovery covers its full durable session, preserves live peers and
   cannot mistake an empty execution store for confirmed qualifier cleanup.
+  Include the post-qualification native preflight gap before execution journaling
+  under the shared manager's same exclusion and reference ownership.
 - Cleanup failure remains removed with retained evidence; unrelated installation
   survives. Zero real accounts, model calls or robot operations.
 - Current-input cumulative checks, usage CLI, frozen evidence and independent

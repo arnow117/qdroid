@@ -2329,7 +2329,7 @@ esac
         ],
         maxOutputBytes: 64,
       }),
-      /closed before accepting input/,
+      /EISDIR/,
     );
 
     const completion = await guardian.completion;
@@ -2430,7 +2430,7 @@ exit 0
         ],
         maxOutputBytes: 64,
       }),
-      /closed before accepting input/,
+      /could not create its task-owned container/,
     );
     await guardian.completion;
     assert.deepEqual((await readFile(logPath, 'utf8')).trim().split('\n'), ['create']);
@@ -2495,7 +2495,7 @@ exit 0
           labels: expectedLabels,
         },
       }),
-      /closed before accepting input/,
+      /could not identify its task-owned container/,
     );
     await guardian.completion;
     assert.deepEqual((await readFile(logPath, 'utf8')).trim().split('\n'), ['create', 'inspect']);

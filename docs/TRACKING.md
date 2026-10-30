@@ -1,6 +1,6 @@
 # Tracking and delivery workflow
 
-Status: early implementation, 2026-10-29. This file defines tracking ownership; it does not introduce another runtime or automatic synchronization service.
+Status: early implementation, 2026-10-30. This file defines tracking ownership; it does not introduce another runtime or automatic synchronization service.
 
 ## Public tracking
 
@@ -32,7 +32,177 @@ GitHub state is a human-maintained projection. Closing an issue does not automat
 
 ## Current scope
 
-T001 through T004 are accepted implementation increments. T001 established the trusted host-driver path; T002 verifies real supervisor-bound simulator calls in one fixed ARM64 Linux/gVisor profile. T003 adds atomic admission, cancellation ordering, and authoritative recovery without resending unknown work. T004 adds qualified offline profiles and execution recovery; T005 through T009 are authorized, and T010 through T012 await device prerequisites. A completed design/setup issue is separate from the runtime epic and cannot close the MVP acceptance.
+T001 through T004 are accepted implementation increments. T001 established the trusted host-driver path; T002 verifies real supervisor-bound simulator calls in one fixed ARM64 Linux/gVisor profile. T003 adds atomic admission, cancellation ordering, and authoritative recovery without resending unknown work. T004 adds qualified offline profiles and execution recovery; T005 is in progress, T006 through T009 are authorized and remain todo, and T010 through T012 await device prerequisites. A completed design/setup issue is separate from the runtime epic and cannot close the MVP acceptance.
+
+T005 current status (2026-10-30): **in progress, unaccepted WIP snapshot**.
+The user authorized saving the unfinished tree on `codex/t005-wip-20261030`
+for clone-based continuation. The default remote branch retains accepted T001–T004.
+Read the [recovery checkpoint](../.sdlc-v1/checkpoints/FEAT-MVP-001.md) before resuming;
+this save does not constitute T005 acceptance or a product release.
+The executable dependency-graph package-runtime unit is now accepted for
+host/Mock scope and its three source/test files are integrated. On its exact
+121-source overlay, pinned format/typecheck/build pass and whole-host tests report
+214 pass, 0 fail, 16 Linux-only skips; independent correction review has no
+remaining P1/P2. Source ownership returns to the original production implementer
+for real OCI graph assembly and recovery. Production graph capability remains
+disabled; unified current-source Linux/installation/crash/CLI acceptance and
+whole-Task review are still required.
+Boundary v122 passes three actual Linux cases: all-profile normal operation,
+post-keeper-ack journal failure with no-create proof, and malformed nested identity
+with zero configure writes. V124 closes the independent cleanup-cause omission
+with a controlled Linux guardian dual-failure case, but its review finds two
+command-result regressions. The corrected v125b passes both held-command cases:
+healthy completion has no spurious error, and an earlier inspect failure survives
+later successful removal. Independent source review closes both regressions
+with no actionable P1/P2 in that delta. These controlled
+fake-Docker cases cover shared command handling; complete real-daemon and parent
+loss fault evidence is still required.
+Network v121 adds an actual cached-read/dispose race to the passing profile
+interface/UDPv6 case; v118's separate named forged-interface rejection also passed.
+The latest network correction review on v116 still has six P2 in successful-fact
+retention, actual raw close, physical cleanup versus health, cached-read fencing,
+nested diagnostics and concurrent cleanup. V121 supplies a candidate correction
+and regression evidence for cached-read fencing; final source closure remains
+pending. These tests run no dependent sandbox probe and do not establish network
+isolation or full recovery. Production dependency preparation remains unsupported
+and fails closed while the same producer completes it. The same producer
+owns both correction batches; earlier failed inputs and unknown state remain
+preserved, including v117's excluded wrong-target green result and v120's original
+failed race exported without rerunning.
+Further managed-network implementation is stopped pending direction under the
+repository's mandatory nonconvergence rule: two consecutive implementation returns
+add neither source changes nor new causal evidence. Sources and unknown resources
+are preserved; no additional diagnosis or Task completion is claimed.
+The earlier accepted frozen consumer units are USE-003
+(13 host/Mock tests plus actual content CLI) and managed-profile routing consumer
+(18 Mock tests); both include pinned format/typecheck/build evidence and no
+remaining actionable P1/P2. The CLI uses one fixed private per-user reference-node
+root with strict validation/synchronization of both state subroots. Backend write
+ownership has explicitly transferred to the original producer for integration.
+A separate Linux pre-provider recovery input passes10/10 using injected
+non-live PID identities; it does not cover actual SIGKILL or resources/execution
+already started.
+
+The human-authorized single-container diagnosis confirms the unchanged fixed
+guest stays live until explicit cancellation. The selected correction preserves
+original start acknowledgement and requires exact Running+PID proof at live-cgroup
+inspection. Corrected guardian input v89 passed17/17 on the dedicated Linux VM,
+including the actual live-cgroup case. Source review then required late-result
+lifecycle/deadline checks and strict observation/fixture settlement corrections.
+The combined correction input v91 passes30/30 guardian/session tests, including
+contradictory pre-provider evidence rejection, retirement resynchronization and
+independent persistence errors. Independent review closes those product fixes
+and the subsequent v92 parent-link rejection and actual guardian-exit corrections.
+The expanded v92 Linux input remains unaccepted:42/63 pass,21 fail, with the
+terminal-state checks and older assertions under correction. V93 localizes an
+incorrect comparison between the initial ready journal tag and the final cleanup
+journal tag; both must remain bound through the original ready/intent records,
+but their values change during ordinary cleanup. The same producer owns this
+correction. This component evidence is not a whole qualification/installation pass. The first actual
+managed-assembly input also found terminal persistence incorrectly requiring an
+active owner after correct admission sealing. Its correction must keep new work
+closed and preserve only tracked cleanup-terminal authority and authenticated
+journal history. The later v95 input passes3/3 actual Linux assembly/native/
+sealed-terminal regressions after the tag correction; independent component
+source review required preserving independent directory-sync and close causes;
+the later v97 correction passes3/3 targeted Linux cases and independent review,
+including the adjacent journal write/close error path. Only that persistence
+component is accepted; the expanded suite still awaits current-input acceptance.
+The fixed boundary-control keeper
+[implementation contract](../planner/t005-boundary-control.md) has passed
+independent protocol review and is released to that producer; actual boundary
+implementation and Linux/crash verification remain pending. This does not replace the expanded suite or complete
+provider/keeper/execution recovery, executable graphs,
+shared-authority/concurrent/shared-image checks and final Linux/cumulative/USE-003
+plus independent final review remain. Readiness stays fail-closed. All earlier
+failures and used diagnosis allowances, including the extra diagnostic, remain.
+See the [current T005 summary](https://github.com/arnow117/qdroid/issues/7#issuecomment-6489220633).
+
+The next [managed network-control contract](../planner/t005-network-controls.md)
+has also passed independent protocol review. It preserves fixed targets and
+original assessments, separates legacy/profile receipt schemas, and prevents
+resetting measured evidence or hiding a failure after disposal. Implementation
+and actual Linux/crash qualification remain pending under the same producer.
+
+The [executable-graph installer unit](../planner/t005-executable-graph-unit.md)
+has passed host/Mock implementation acceptance and its three source/test files
+are integrated. The original producer now owns those files together with actual
+graph copy/recovery and VM integration. An optional trusted-factory capability keeps
+default production graph installation rejected before effects until those paths
+are complete. Unit evidence and protocol approval cannot enable readiness or
+complete T005; final acceptance uses one unified current source.
+
+Earlier T005 evidence history below refers to different frozen inputs and does
+not substitute for the remaining whole-task acceptance.
+
+T005 component checkpoint (2026-10-29 +08): primary accepts the narrowly scoped
+live-file component after actual21/21 Linux native/file tests, a changed-case1/1,
+exact77-file source checks and independent review. Retained inode handles reject
+root/child/file/I/O substitutions; pre-receipt descriptor settlement, independent
+failure preservation and negative-test evidence retention are corrected.
+The closed probe/control contract introduces no argv/path relay. Its inspection
+DTO now preserves the bounded cgroup and process-observer evidence required by
+existing verifiers. A subsequent disposal-Promise regression is corrected with
+affected Linux2/2 and independent delta review; actual query integration and the
+full current-input cumulative run remain pending. The same implementer owns the
+full provider/recovery/assembly work. Post-crash deletion still requires separate
+authenticated ownership proof.
+Primary accepts the stopped configuration-container/settlement component after
+actual Linux31/31,77 exact source inputs and independent27-file delta review.
+Raw terminal observation now survives a held serialized ID-journal mutation;
+whole-observer settlement, proven idle-only shutdown, bounded polling and
+independent failure preservation close the four reviewed branches. Two earlier
+private-protocol regressions and their failed runs remain in the history.
+Input review also closes three source defects: content-only build skipping,
+version aliases and decoded generated bytes exceeding8MiB. Focused host20/20
+is worker-reported without retained raw logs; final current-input host evidence
+remains required. A later test-only clarification is not part of that Linux run.
+The executable-probe protocol/dependency contract
+and closed managed-assembly/material-verification contract have passed their
+independent pre-implementation checks. The bounded dependency-graph/material/
+registry extension has also passed its contract check and is released to the
+same implementer; implementation and runtime acceptance remain pending.
+The latest combined guardian/managed-resource Linux run passes37/37 with no
+skip/cancel and77 exact source inputs. Independent review of v44 closed the five
+original shared-protocol corrections, v46 closed filesystem dependency ordering,
+and v49 closes the discriminating terminal-race and finite-wait regressions.
+Primary accepts that narrow component correction. The race regression
+runs production guardian code against a controlled fake Docker binary. Actual
+scratch/filesystem component probes remain distinct from that controlled test;
+no host bind mount, full qualifier, installer or crash-recovery pass is claimed.
+The fixture runtime/assembler does not establish production qualification,
+executable installation or T005 acceptance. The content-only v0.2 closure and registryv3 have retained host evidence.
+Independent review has closed the graph-material size/deadline, namespace,
+publication lease and fixture settlement corrections. The latest independent frozen host
+cumulative suite passes196 tests with zero fail/cancel and8 actual Linux-only
+skips on Node24.16.0/npm11.13.0; offline npm-ci, format, lint and npm test
+(including build) exit0. Primary verified117 exact regular public inputs and
+retained all raw commands/results; all tested source hashes remain unchanged.
+Subsequent guardian/ResourceOps integration already differs, so this is not
+final-current-input evidence. Independent review closes the complete material
+preflight correction and confirms owner-bound registrations/readonly routing.
+One key-durability P2 remains: reuse must synchronize the existing private key
+and authority directory before issuing new durable journals. Primary also
+identified raw-copy settlement, exact template-child ownership and authenticated
+create-success proof corrections in the new actual assembly workflow. The same
+worker owns all corrections and the complete remaining runtime.
+Full managed provider migration, authenticated cleanup-only recovery, actual
+managed assembly, executable dependency graphs, current Linux/cumulative/USE-003
+checks and final independent review remain required. Readiness stays fail-closed.
+A later dedicated Linux component run passes41/41 with zero fail/skip/cancel
+on the original Docker29.9.2 reference VM. Primary verified118 exact regular
+inputs, raw command/exit logs and identical before/after hashes. This input
+retains the stable v75 consumer baseline and explicitly overlays five
+producer/fixture files. Its controlled guardian cases cover parent loss during
+copy, original writer settlement, child substitution and committed receipt
+retention; fake-Docker cases are not full-daemon installation qualification.
+The default-profile selection error and dedicated earlier failures remain
+preserved. Disjoint backend and USE-003 consumer work uses isolated host/Mock
+snapshots; final integration still requires one stable complete input.
+The [current T005 issue summary](https://github.com/arnow117/qdroid/issues/7#issuecomment-6489220633)
+links retained earlier failures and all used diagnosis allowances: VM preflight,
+root replacement and content publication. No T005 commit or completion transition
+has occurred.
 
 Current checkpoint (accepted 2026-10-29 +08): T004 passed the final r34
 serial Linux cumulative31/31 with zero skipped/cancelled tests, focused real
@@ -241,7 +411,7 @@ Before publication, inspect the explicit file list and diff, confirm personal ag
 
 ## Registered task links
 
-`FEAT-MVP-001` is `in_progress`; T001 through T003 are `done`, T004 is `in_progress`, and T005 through T012 remain `todo`. Exact progress is owned by lifecycle state.
+`FEAT-MVP-001` is `in_progress`; T001 through T004 are `done`, T005 is `in_progress`, and T006 through T012 remain `todo`. Exact progress is owned by lifecycle state.
 
 | Lifecycle Task | GitHub Issue                                                                               | Milestone |
 | -------------- | ------------------------------------------------------------------------------------------ | --------- |
@@ -258,4 +428,4 @@ Before publication, inspect the explicit file list and diff, confirm personal ag
 | T011           | [#13 — T1 媒体导入、串行播放与本地恢复](https://github.com/arnow117/qdroid/issues/13)      | M3        |
 | T012           | [#14 — T1 语音触摸交互与资源预算集成](https://github.com/arnow117/qdroid/issues/14)        | M3        |
 
-Detailed scope, dependencies and acceptance are owned by the [engineering context](../.sdlc-v1/context/FEAT-MVP-001.engineering.md). T001/T002/T003 are accepted. The user has authorized continuous T004–T009 implementation, project/dedicated-VM dependencies and controlled tests, independent review, and post-acceptance commit/push and tracking updates. Robot operations, real accounts/models, paid remote resources and formal releases still require their specific authorization.
+Detailed scope, dependencies and acceptance are owned by the [engineering context](../.sdlc-v1/context/FEAT-MVP-001.engineering.md). T001 through T004 are accepted. The user has authorized continuous T004–T009 implementation, project/dedicated-VM dependencies and controlled tests, independent review, and post-acceptance commit/push and tracking updates. Robot operations, real accounts/models, paid remote resources and formal releases still require their specific authorization.

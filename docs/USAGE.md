@@ -92,6 +92,65 @@ this driver as an external workload launcher. T002 is responsible for attaching 
 supervisor-owned channel to a qualified Linux workload and for publishing any
 sandbox evidence.
 
+## USE-003: trusted package installation fixture
+
+This host fixture exercises installation and reuse through the trusted
+`PackageInstaller` API. It freezes fixed local package bytes, installs once, then
+repeats the same source so the second result must reuse the original
+`installed-disabled` record. It retains a private bounded state directory and
+prints that path for inspection. The `PackageInstaller` composition here accepts
+no application-activation or authorization-grant authority, and its record
+remains `installed-disabled`.
+
+Run the verified content-only fixture:
+
+```sh
+npm run build
+node dist/apps/cli/src/index.js install-demo --fixture content
+```
+
+The output reports `"status": "installed-disabled"`, initial
+`"reusedExisting": false`, repeat `"reusedExisting": true`, the original
+package/version record digests, and confirmation that the nested Skill and asset
+bytes were retained. The fixture is trusted host content installation only; it
+does not start a sandbox workload, activate an application, issue a grant, or
+claim Linux package execution qualification.
+
+The executable fixture has a fixed Linux ARM64 reference package and accepts only
+an operator-selected, already-local immutable image ID in this exact form:
+
+```sh
+node dist/apps/cli/src/index.js install-demo --fixture executable --image sha256:<64-lowercase-hex>
+```
+
+This command remains an implementation-pending proposal until the dedicated Linux
+T005 qualification and run have passed. It does not pull an image and never falls
+back to Docker, host execution, or a different architecture. A runtime readiness
+failure after state construction is reported nonzero with the retained private
+state path; preserve that state rather than deleting or retrying it as a generic
+cleanup action.
+
+The production executable command first requires the current CLI host to be Linux
+ARM64. On another host it exits nonzero before it freezes a source, creates fixture
+state, or starts a runtime; the typed Mock-runtime seam used by contract tests is
+not available as a CLI argument.
+
+On a supported host, all default executable calls use the code-fixed Linux path
+`/var/tmp/qdroid-package-install-demo-reference-node-uid-<uid>`. It does not use
+`TMPDIR`, `TMP`, `TEMP`, or any user-selected path. Its private root plus the fixed
+`installer` and `owner-store` directories are validated and synchronized before
+the installer or runtime is constructed, so retries retain the same authority
+namespace. The command offers no path, reset, force, or repair flag. A symlink,
+non-directory, different owner, or different mode is rejected without replacement
+or repair, and the existing materials remain available for diagnosis. The first
+executable call can report an existing disabled record; the second same-input call
+must reuse that exact original record. Content and direct Mock-fixture calls retain
+separate temporary state.
+
+Malformed options, duplicated flags, an image with the content fixture, a missing
+executable image, or any non-immutable image ID exit nonzero before a source,
+installer state directory, runtime, application, or grant is created.
+
 ## USE-002: negotiated admission and persistent counter journey
 
 This T003 journey adds `qdroid.admission/v1` to the existing `qdroid.rpc/v0.1`

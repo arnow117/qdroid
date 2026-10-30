@@ -4,6 +4,9 @@ Planning notes only. T008 remains todo and depends on T006. The normative source
 is `docs/specs/scene-rendering.md`; the Feature engineering context owns the
 effective plan. No browser, codec or display support is established by these notes.
 
+The [2026-10-29 primary-source compatibility check](t008-renderer-compatibility.md)
+records documentation observations and their limits; it is not a launch result.
+
 ## First actual compatibility check
 
 Before implementing the full media pipeline, construct a pinned trusted renderer

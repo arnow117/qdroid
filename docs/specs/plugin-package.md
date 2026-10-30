@@ -57,6 +57,42 @@ Executable dependencies normally reside in fixed-digest OCI images, not arbitrar
 
 Reject unknown authorization/runtime fields and duplicate JSON keys. Optional extensions must live in a separately versioned, explicitly supported extension namespace. A new required field/semantic behavior cannot be ignored as an additive upgrade. Version ranges in source declarations must resolve to exact content in the installation lock.
 
+Manifest versions use canonical SemVer spelling. Reject a `v` prefix and leading
+or trailing whitespace instead of admitting another immutable-version key for
+the same spelling after normalization. Preserve canonical prerelease and build
+metadata in the version identity. A content-only installation rejects a `build`
+declaration before staging or runtime effects; it cannot silently skip a declared
+build and register an installation with missing output.
+
+## Versioned dependency declarations
+
+The selected graph format uses `qdroid.plugin/v0.2` with a matching
+`qdroid.lock/v0.2`. Direct dependencies are exact `{name, version, sourceId}`
+records; the source lock repeats the same canonical declarations and binds the
+node's input-content digest. The approved host catalog supplies each source's
+transport digest and byte limit. The external trusted resolved graph records
+the actual complete content/catalog identities. Dependency declarations convey
+no URL, host path, network permission or recursive artifact hash authority.
+V0.1 remains a single-package format and rejects dependency fields.
+
+Resolve and validate the entire graph before staging or execution. Include the
+root in32 distinct package keys, use root depth0 with at most8 dependency edges,
+and bound unique transports/expanded archives to64/128MiB. Reject cycles,
+conflicting key/source bindings and duplicate edges. Dependencies remain private
+root-installation materials; declared builds run in dependency order under the
+same managed owner and original sandbox limits. No child installation, service
+or grant is created automatically. Unsupported platform/catalog composition
+rejects before effects. The effective T005 engineering plan defines retained
+node proof, read-only reuse and preserving registry migration; this specification
+does not claim the graph implementation has passed acceptance.
+
+The retained graph-material JSON uses the same256KiB metadata limit on writing
+and reading. Validate the complete sealed graph and node materials before the
+atomic disabled registration; an oversized or unreadable record cannot leave a
+committed root installation. Semantic graph equality is distinct from a
+candidate's physical proof paths: identical reuse verifies and returns the
+original winner's immutable references.
+
 ## Illustrative tool package
 
 The example image digest is a synthetic fixture, not a real image. Resource values are requested limits for discussion, not measured T1 capacity or installed defaults.

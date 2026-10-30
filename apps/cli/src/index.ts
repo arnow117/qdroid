@@ -3,6 +3,10 @@ import { runSandboxBackendLinuxSuite } from '../../../fixtures/host-boundary/src
 import { runLinuxReadonlyFixtureSuite } from '../../../fixtures/readonly-sim/src/linux-broker.js';
 import { createAdmissionFixture } from '../../../fixtures/admission/src/driver.js';
 import {
+  PackageInstallDemoError,
+  runPackageInstallDemo,
+} from '../../../fixtures/package-install-demo/src/index.js';
+import {
   ADMISSION_FEATURE,
   COUNTER_SIM_CAPABILITY,
   COUNTER_SIM_RESOURCE,
@@ -95,6 +99,25 @@ async function main(): Promise<void> {
       );
     } catch (error) {
       console.error(sandboxDemoFailureDiagnostic(error));
+      process.exitCode = 1;
+    }
+    return;
+  }
+
+  if (command === 'install-demo') {
+    const options = parseInstallDemoArguments(argumentsValue);
+
+    if (options === undefined) {
+      writeUsage();
+      process.exitCode = 1;
+      return;
+    }
+
+    try {
+      const report = await runPackageInstallDemo(options);
+      console.log(JSON.stringify(report, null, 2));
+    } catch (error) {
+      console.error(installDemoFailureDiagnostic(error));
       process.exitCode = 1;
     }
     return;
@@ -283,6 +306,59 @@ function parseAdmissionMode(
     : undefined;
 }
 
+function parseInstallDemoArguments(
+  argumentsValue: string[],
+): { fixture: 'content' | 'executable'; image?: string } | undefined {
+  if (argumentsValue.length === 0 || argumentsValue.length % 2 !== 0) {
+    return undefined;
+  }
+
+  const options = new Map<string, string>();
+  for (let index = 0; index < argumentsValue.length; index += 2) {
+    const option = argumentsValue[index];
+    const value = argumentsValue[index + 1];
+    if (
+      option === undefined ||
+      value === undefined ||
+      (option !== '--fixture' && option !== '--image') ||
+      options.has(option)
+    ) {
+      return undefined;
+    }
+    options.set(option, value);
+  }
+
+  const fixture = options.get('--fixture');
+  const image = options.get('--image');
+  if (fixture === 'content' && image === undefined && options.size === 1) {
+    return { fixture };
+  }
+  if (
+    fixture === 'executable' &&
+    image !== undefined &&
+    /^sha256:[0-9a-f]{64}$/.test(image) &&
+    options.size === 2
+  ) {
+    return { fixture, image };
+  }
+  return undefined;
+}
+
+function installDemoFailureDiagnostic(error: unknown): string {
+  if (error instanceof PackageInstallDemoError) {
+    return JSON.stringify({
+      category: error.category,
+      retainedStateRoot: error.retainedStateRoot,
+      status: 'failed',
+    });
+  }
+  return JSON.stringify({
+    category: 'input',
+    retainedStateRoot: null,
+    status: 'failed',
+  });
+}
+
 async function reconcileAcceptedFixture(
   fixture: ReturnType<typeof createAdmissionFixture>,
   taskId: string,
@@ -326,4 +402,8 @@ function writeUsage(): void {
   );
   console.error('       qdroid linux-demo --image <qualified-fixture-image>');
   console.error('       qdroid sandbox-demo --image <qualified-fixture-image>');
+  console.error('       qdroid install-demo --fixture content');
+  console.error(
+    '       qdroid install-demo --fixture executable --image sha256:<64-lowercase-hex>',
+  );
 }

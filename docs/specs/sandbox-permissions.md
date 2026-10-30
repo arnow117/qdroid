@@ -1,6 +1,6 @@
 # Sandbox, identity, and permission contract
 
-Status: proposed v0.1, 2026-10-23. MUST/SHOULD describe implementation acceptance requirements, not controls that already exist. This design does not assert certified physical safety or complete prevention of information leakage.
+Status: proposed v0.1, updated 2026-10-29. MUST/SHOULD describe implementation acceptance requirements, not controls that already exist. This design does not assert certified physical safety or complete prevention of information leakage.
 
 ## Threat model and trust classes
 
@@ -117,9 +117,100 @@ cleanup is idempotent. Public recovery must also reconcile a recorded late
 retirement whose file has already been unlinked. Preserve the original failure
 alongside any independent cleanup failure through composed service calls.
 
+## Filesystem cleanup ownership
+
+A pathname or saved device/inode/mode tuple alone MUST NOT authorize deletion.
+The filesystem can reuse those values after the original object is removed.
+Live owners retain the actual created file/directory handles through their
+cleanup decisions, verify the current path against those handles and the
+expected content/modes, and settle handle closure before releasing ownership.
+Initialization failure, repeated disposal and concurrent close share the same
+cleanup responsibility; they cannot discard handles or upgrade unknown cleanup
+to confirmed. Preserve original operation and descriptor/cleanup errors.
+
+The trusted owner and its excluded cleanup-only recovery path are the sole
+writers of the owned private namespace. This writer exclusion covers the final
+identity check and pathname removal; a handle plus a separate unlink/rmdir does
+not provide atomic deletion by inode against an arbitrary concurrent host
+writer. If exclusion or ownership cannot be proved, preserve the entry and
+report unknown. Workloads cannot write these host namespaces.
+
+After owner death, an authenticated record or ownership marker proves the
+record's origin, not that a physical inode was never replaced. Recovery first
+excludes old writers and validates sufficient persistent creation evidence;
+it cannot substitute a reused numeric tuple for a lost live handle. Missing,
+corrupt, unsupported or copied witnesses and incomplete marker-removal windows
+remain unknown unless independently resolved. An empty directory is not proof
+that it belongs to the abandoned session.
+
+Persistent qualification fixtures and assembly templates that need cleanup after
+installer death use a closed cleanup writer that retains their original handles.
+Persist the authenticated resource intent before forking and the actual idle
+writer's boot/PID/start/group identity before authorizing fixed creation. Before
+a probe, container or copy writer can use that material, persist its dependency
+binding and receive the keeper's registration confirmation. Parent loss seals new
+work; deletion still requires the dependent resources' authenticated cleanup
+results and actual writer settlement. A bounded command result or parent death
+alone is insufficient. Each template child needs its own ownership proof;
+unexpected or substituted entries are preserved rather than recursively removed.
+
+Boundary qualification controls must remain valid through their dependent
+negative probes. After probes and admitted reads settle, revalidate the fixed
+positive controls before intentional disposal. An unexpected control-process
+exit or other latched health failure rejects qualification with its original
+cause even when resource cleanup is confirmed separately. A negative read of
+an already lost control is not evidence of isolation. Expected, identity-verified
+cleanup shutdown does not itself constitute a control failure.
+
+Cleanup writers publish separate versioned, domain-separated authenticated
+terminal receipts bound to the original resource/session and writer identity.
+They do not concurrently replace the parent's central journal. Both a newly
+created authority key and an existing key being adopted MUST be verified and
+synchronized, together with their authority directory, before signing new durable
+records. A readable key is not proof that an earlier synchronization succeeded.
+Preserve independent persistence, descriptor and cleanup failures.
+
+Fresh recovery verifies original cleanup receipts and actual writer/group exit;
+it does not recreate file deletion authority from paths or authorize new recipes.
+Missing evidence, live dependencies or a finite cleanup timeout retain unknown
+state, the session reservation and its evidence. Temporary-container cleanup
+cannot authorize removal of sealed or shared images, or of control keys, SQLite
+files and original evidence stores.
+
+The same cross-process build authority owns recovery and new admission. A
+recovery capability is distinct from an active session owner and permits only
+verification and authorized cleanup of the original resources; it cannot obtain
+execution authority.
+Persist the authenticated session-to-resource-journal acknowledgement before
+resource actions. Missing expected evidence cannot be interpreted as a session
+with no resources. Synthetic host fixtures do not provide production owner or
+recovery proof.
+
+After complete cleanup proof, persist and synchronize an authenticated retirement
+receipt before removing the exact active session intent and synchronizing its
+directory. Keep the physical authority transaction until those steps complete.
+Preserve original resource journals and receipts, including after an interrupted
+retirement whose active intent is already absent. An unresolved prior session
+continues to exclude a new build.
+
 ## Network enforcement
 
 Default deny is enforced in the runtime's network boundary, not by asking the process to respect proxy environment variables. Negative tests include direct-IP sockets, DNS/UDP, IPv4/IPv6 loopback, private/link-local/metadata addresses, alternate ports, redirect chains, and DNS rebinding where network resolution is allowed. Approved broker endpoints are explicit exceptions with identity binding, not a broad allowance for host/private networks.
+
+Qualification receipt snapshots must cover every controlled target and protocol,
+including ordinary IPv6 UDP. Require explicit settled evidence and strict boolean
+negative receipts; a missing field or an invalid value is not proof of zero
+traffic. Cleanup success cannot clear a previously observed controller failure.
+Use strict schemas for the actual controlled protocol set; never invent a false
+receipt for a protocol that was not observed. The complete profile qualification
+must include IPv6 UDP even when its legacy prerequisite has a narrower set.
+
+A managed control handle has one measurement epoch. After its positive clients
+settle, allow a single reset before probe preparation; subsequent resets and
+positive sends cannot erase measured negative evidence, including between probe
+cleanup and snapshot consumption. Snapshots remain bound to that epoch. The
+original disposed handle may read cached terminal health and latched causes;
+disposal never authorizes new controls, resets, positive sends or probes.
 
 Renderers receive no internet or connector access. Package/dependency fetch occurs in build/fetch services, with size/hash/source validation. Broker uploads/downloads authorize operation and destination/resource; a same-domain write is still a possible data leak and requires the appropriate grant.
 
@@ -158,3 +249,14 @@ The MVP must collect evidence on an actual Linux host for the exact backend/imag
 Required negative scenarios are: forged principal/grant; stale epoch; revoked queued call; two concurrent invocations with one remaining use; cancellation before/after dispatch commit; resource-selector bypass; replay; unknown-outcome retry/refund; host canary read; cross-app access; direct network bypass; denied robot network/device; credential/memory/log access; archive escape; child-process escape; actual memory/PID/CPU/output limits; cancellation of descendants; runtime downgrade attempt; concurrent activation/rollback/removal; and crash recovery of dispatch/approval/budget records.
 
 Use synthetic secrets, mock downstream APIs, and isolated test networks. Never run destructive qualification against the live robot or a personal account. T1 device acceptance separately proves adapter behavior, manual takeover and display recovery; it does not replace generic isolation tests.
+
+A package-build execution handed to the trusted T004 runtime retains its
+BuildSession binding in a distinct authenticated managed journal version.
+Generic abandoned-execution recovery without the matching BuildAuthority
+capability must report pending/unknown and may not clean or retire that managed
+record. Recovery lock order is BuildAuthority then the exact T004 recovery lock;
+no reverse acquisition is allowed. Before the original journal is retired, the
+BuildSession durably acknowledges its cleanup proof. A never-authorized create
+uses an authenticated no-create proof plus actual guardian/writer settlement;
+a possibly-submitted create without its original success receipt stays unknown.
+A later confirmed cleanup does not replace the original execution outcome.

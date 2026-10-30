@@ -5,7 +5,7 @@ import {
 import { RuntimeCore } from '../../../packages/core/src/index.js';
 import { PolicyAuthority } from '../../../packages/policy/src/index.js';
 import type { BoundWorkloadIdentity } from '../../../packages/supervisor/src/index.js';
-import { writeFileSync } from 'node:fs';
+import { closeSync, fsyncSync, openSync, renameSync, writeFileSync } from 'node:fs';
 
 type CrashPhase =
   | 'after-commit-before-send'
@@ -75,7 +75,32 @@ function report(value: Record<string, string>): void {
   if (reportPath === undefined) {
     throw new Error('The crash worker report path is missing.');
   }
-  writeFileSync(reportPath, JSON.stringify(value));
+
+  const temporaryPath = `${reportPath}.${process.pid}.tmp`;
+  const descriptor = openSync(temporaryPath, 'wx', 0o600);
+  let writeFailure: unknown;
+
+  try {
+    writeFileSync(descriptor, JSON.stringify(value), 'utf8');
+    fsyncSync(descriptor);
+  } catch (error) {
+    writeFailure = error;
+    throw error;
+  } finally {
+    try {
+      closeSync(descriptor);
+    } catch (closeError) {
+      if (writeFailure === undefined) {
+        throw closeError;
+      }
+      throw new AggregateError(
+        [writeFailure, closeError],
+        'The crash worker could not write and close its report marker.',
+      );
+    }
+  }
+
+  renameSync(temporaryPath, reportPath);
 }
 
 function waitUntilKilled(): Promise<never> {

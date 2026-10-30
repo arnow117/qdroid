@@ -6,6 +6,8 @@ export const COUNTER_SIM_CAPABILITY = 'sim.counter.add/v1';
 export const COUNTER_SIM_SCHEMA_VERSION = 'qdroid.capability.sim.counter.add/v1';
 export const COUNTER_SIM_RESOURCE = 'counter.default';
 
+export { parseStrictJson, parseStrictJsonBytes, type StrictJsonOptions } from './strict-json.js';
+
 export type JsonPrimitive = boolean | null | number | string;
 export type JsonValue = JsonPrimitive | JsonValue[] | { [key: string]: JsonValue };
 

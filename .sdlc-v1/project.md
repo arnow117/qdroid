@@ -1,12 +1,12 @@
 # 项目上下文：qdroid
 
-更新：2026-10-29。当前已有最小 trusted host-driver 与固定 Linux OCI 路径的源码、依赖锁和契约测试；Linux 沙箱资格与设备支持分别取证，不能从代码存在推断通过。专用VM的Docker Engine/CLI已固定更新为29.9.2，containerd2.2.1及gVisor保持原配置；T002/T003历史验收使用29.2.1；T004已在29.9.2的新指纹上完成三种离线profile资格及累计验收。
+更新：2026-10-30。当前已有最小 trusted host-driver 与固定 Linux OCI 路径的源码、依赖锁和契约测试；Linux 沙箱资格与设备支持分别取证，不能从代码存在推断通过。专用VM的Docker Engine/CLI已固定更新为29.9.2，containerd2.2.1及gVisor保持原配置；T002/T003历史验收使用29.2.1；T004已在29.9.2的新指纹上完成三种离线profile资格及累计验收。
 
 ## 项目概览与事实边界
 
 qdroid 面向 Linux 机器人主控的 Agent 应用运行时，首个适配为 T1 Pro。核心接口、插件包、沙箱/权限、显示和凭证服务通过 ports/adapters 分离。仓库基础已发布；用户已授权连续实施 T004—T009，包含项目及现有专用 Linux VM 内必要依赖、镜像、运行时和受控测试环境；测试、独立评审和验收后提交推送并更新 GitHub tracking。T001—T004 已完成；真实机器人操作、真实账号/模型调用、付费远程资源和正式发布仍需对应授权。
 
-事实来源为根 AGENTS.md、README.md、docs/specs、docs/architecture 及代码/锁文件。当前独立 Git 分支是 `codex/project-foundation`；实现版本和验收证据见工程上下文，不把未来候选称为已安装或已通过。
+事实来源为根 AGENTS.md、README.md、docs/specs、docs/architecture 及代码/锁文件。当前开发分支登记在 lifecycle state；本次跨会话备份为 `codex/t005-wip-20261030`，默认远端 `codex/project-foundation` 保持已验收基线。clone 后先读[恢复检查点](checkpoints/FEAT-MVP-001.md)；实现版本和验收证据见工程上下文，不把 WIP 保存称为 T005 接受或发布。
 
 ## 仓库结构与入口
 
@@ -58,15 +58,15 @@ commands:
 
 ## 验证资源与准备
 
-| 项目          | 当前事实/缺口                                                                                                                                                              |
-| ------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 验证方式      | correctness契约/权限测试；未来真实Web显示再补相应模式；当前内部RPC不虚构OpenAPI入口                                                                                        |
+| 项目          | 当前事实/缺口                                                                                                                                                                                           |
+| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 验证方式      | correctness契约/权限测试；未来真实Web显示再补相应模式；当前内部RPC不虚构OpenAPI入口                                                                                                                     |
 | 工具/测试资产 | Node test runner、TypeScript、Prettier；tests/contracts/、tests/admission/、tests/recovery/及tests/linux/已有资产；实际通过范围见工程上下文，固定ARM64三种离线profile已接受；其他host/image仍须各自资格 |
-| 目标环境      | macOS可信host driver与任务专用ARM64 Linux VM；T1未接入，不存私人设备地址                                                                                                   |
-| 测试身份      | none；模拟秘密和Mock API优先；真实账号需单独授权                                                                                                                           |
-| 运行产物      | runtime-data/、artifacts/private/等已ignore；公共非敏感证据在docs中记录                                                                                                    |
-| CI            | none；模板不等于构建/测试工作流                                                                                                                                            |
-| 准备缺口      | 其他架构、可配置/完整 Linux 资格矩阵、设备与外部集成；当前固定 ARM64 fixture 的实际资源和清理证据见工程上下文                                                              |
+| 目标环境      | macOS可信host driver与任务专用ARM64 Linux VM；T1未接入，不存私人设备地址                                                                                                                                |
+| 测试身份      | none；模拟秘密和Mock API优先；真实账号需单独授权                                                                                                                                                        |
+| 运行产物      | runtime-data/、artifacts/private/等已ignore；公共非敏感证据在docs中记录                                                                                                                                 |
+| CI            | none；模板不等于构建/测试工作流                                                                                                                                                                         |
+| 准备缺口      | 其他架构、可配置/完整 Linux 资格矩阵、设备与外部集成；当前固定 ARM64 fixture 的实际资源和清理证据见工程上下文                                                                                           |
 
 ## 变更面映射
 
